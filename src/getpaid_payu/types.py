@@ -204,6 +204,44 @@ class ResponseStatus(AutoName):
     WARNING_CONTINUE_CVV = auto()
 
 
+class CardOnFile(AutoName):
+    """Card-on-file indicators for create order."""
+
+    FIRST = auto()
+    STANDARD_CARDHOLDER = auto()
+    STANDARD_MERCHANT = auto()
+
+
+class RecurringType(AutoName):
+    """Recurring payment type for create order."""
+
+    FIRST = auto()
+    STANDARD = auto()
+
+
+class RefundType(AutoName):
+    """Refund processing method."""
+
+    REFUND_PAYMENT_STANDARD = auto()
+    FAST = auto()
+
+
+class PayoutStatus(AutoName):
+    """Payout status values."""
+
+    PENDING = auto()
+    WAITING = auto()
+    CANCELLED = auto()
+    REALIZED = auto()
+
+
+class TokenStatus(AutoName):
+    """Card token status."""
+
+    ACTIVE = auto()
+    EXPIRED = auto()
+
+
 class OrderStatus(AutoName):
     NEW = auto()
     PENDING = auto()
@@ -243,16 +281,17 @@ class OrderNotification(TypedDict):
     properties: list[SpecData] | None
 
 
-class RefundInfo(TypedDict):  # request
+class RefundInfo(TypedDict, total=False):  # request
     refundId: str | int
-    amount: str | int | None
-    extRefundId: str | int | None
-    bankDescription: str | None
-    type: Literal["REFUND_PAYMENT_STANDARD"] | None
+    description: str
+    amount: str | int
+    extRefundId: str | int
+    currencyCode: str
+    bankDescription: str
+    type: str
 
 
 class RefundRequest(TypedDict):
-    orderId: str | int
     refund: RefundInfo
 
 
@@ -264,7 +303,7 @@ class RefundRecord(TypedDict):  # response
     description: str
     creationDateTime: str | datetime
     status: RefundStatus
-    statusDateTime: str | datetime
+    statusDatetime: str | datetime
 
 
 class RefundResponse(TypedDict):
@@ -293,4 +332,120 @@ class ChargeResponse(TypedDict):
 
 class RetrieveOrderInfoResponse(TypedDict):
     orders: list[OrderData]
+    status: OrderStatusObj
+
+
+# --- Payment Methods ---
+
+
+class PayByLink(TypedDict, total=False):
+    value: str
+    brandImageUrl: str
+    name: str
+    status: str
+    minAmount: int
+    maxAmount: int
+
+
+class CardTokenInfo(TypedDict, total=False):
+    value: str
+    brandImageUrl: str
+    preferred: bool
+    status: str
+    cardExpirationYear: int
+    cardExpirationMonth: int
+    cardNumberMasked: str
+    cardScheme: str
+    cardBrand: str
+
+
+class BlikToken(TypedDict, total=False):
+    value: str
+    type: str
+    brandImageUrl: str
+
+
+class PaymentMethodsResponse(TypedDict, total=False):
+    payByLinks: list[PayByLink]
+    cardTokens: list[CardTokenInfo]
+    blikTokens: list[BlikToken]
+    status: OrderStatusObj
+
+
+# --- Transactions ---
+
+
+class CardData(TypedDict, total=False):
+    cardNumberMasked: str
+    cardScheme: str
+    cardProfile: str
+    cardClassification: str
+    cardResponseCode: str
+    cardResponseCodeDesc: str
+    cardEciCode: str
+    card3DsStatus: str
+    card3DsFrictionlessIndicator: str
+    card3DsStatusDescription: str
+    cardBinCountry: str
+    firstTransactionId: str
+
+
+class TransactionData(TypedDict, total=False):
+    payMethod: dict
+    paymentFlow: str
+    card: CardData
+    resultCode: str
+
+
+class TransactionResponse(TypedDict):
+    transactions: list[TransactionData]
+
+
+# --- Refund retrieval ---
+
+
+class RefundStatusError(TypedDict, total=False):
+    code: str
+    description: str
+
+
+class RefundDetailRecord(TypedDict, total=False):
+    refundId: str
+    extRefundId: str
+    amount: int | str
+    description: str
+    creationDateTime: str
+    currencyCode: str
+    statusDatetime: str
+    status: str
+    statusError: RefundStatusError
+
+
+# --- Shop ---
+
+
+class ShopBalance(TypedDict):
+    currencyCode: str
+    total: int
+    available: int
+
+
+class ShopInfoResponse(TypedDict, total=False):
+    shopId: str
+    name: str
+    currencyCode: str
+    balance: ShopBalance
+
+
+# --- Payouts ---
+
+
+class PayoutData(TypedDict, total=False):
+    amount: int | str
+    description: str
+    extPayoutId: str
+
+
+class PayoutResponse(TypedDict, total=False):
+    payout: dict
     status: OrderStatusObj
