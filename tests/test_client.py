@@ -363,19 +363,19 @@ class TestCapture:
         capture_response = {
             "status": {
                 "statusCode": "SUCCESS",
-                "statusDesc": "Request processed",
+                "statusDesc": "Status was updated",
             },
         }
-        respx_mock.put(
-            "https://secure.payu.com/api/v2_1/orders/ORDER123/status"
+        respx_mock.post(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/captures"
         ).respond(json=capture_response, status_code=200)
 
         result = await payu_client.capture(order_id="ORDER123")
         assert result["status"]["statusCode"] == "SUCCESS"
 
     async def test_capture_failure(self, payu_client, respx_mock):
-        respx_mock.put(
-            "https://secure.payu.com/api/v2_1/orders/ORDER123/status"
+        respx_mock.post(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/captures"
         ).respond(
             json={"error": "Bad request"},
             status_code=400,

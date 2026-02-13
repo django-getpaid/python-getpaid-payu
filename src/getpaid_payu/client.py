@@ -21,7 +21,6 @@ from .types import BuyerData
 from .types import CancellationResponse
 from .types import ChargeResponse
 from .types import Currency
-from .types import OrderStatus
 from .types import PaymentResponse
 from .types import ProductData
 from .types import RefundResponse
@@ -350,20 +349,17 @@ class PayUClient:
     async def capture(self, order_id: str) -> ChargeResponse:
         """Capture (charge) a previously authorized order.
 
+        Uses the new POST /captures endpoint (the PUT /status
+        endpoint is deprecated).
+
         :param order_id: PayU order identifier.
         :return: Normalized JSON response from API.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/status")
-        data = {
-            "orderId": order_id,
-            "orderStatus": OrderStatus.COMPLETED,
-        }
-        encoded = json.dumps(data, default=str)
+        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/captures")
         self.last_response = await self._request(
-            "PUT",
+            "POST",
             url,
             headers=self._headers(),
-            content=encoded,
         )
         if self.last_response.status_code == 200:
             return self._normalize(self.last_response.json())  # type: ignore[return-value]

@@ -287,11 +287,6 @@ class PaymentResponse(BaseResponse):
     redirectUri: str
 
 
-class ChargeRequest(TypedDict):
-    orderId: str | int
-    orderStatus: Literal[OrderStatus.COMPLETED]
-
-
 class ChargeResponse(TypedDict):
     status: OrderStatusObj
 
