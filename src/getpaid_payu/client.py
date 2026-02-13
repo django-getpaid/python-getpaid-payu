@@ -234,7 +234,23 @@ class PayUClient:
         products: list[ProductData] | None = None,
         notify_url: str | None = None,
         continue_url: str | None = None,
-        **kwargs: str,
+        validity_time: str | int | None = None,
+        additional_description: str | None = None,
+        visible_description: str | None = None,
+        statement_description: str | None = None,
+        card_on_file: str | None = None,
+        recurring: str | None = None,
+        pay_methods: dict | None = None,
+        three_ds_authentication: dict | None = None,
+        risk_data: dict | None = None,
+        device_fingerprint: str | None = None,
+        shopping_carts: list[dict] | None = None,
+        submerchant: dict | None = None,
+        credit: dict | None = None,
+        mcp_data: dict | None = None,
+        settings: dict | None = None,
+        donation: dict | None = None,
+        **kwargs,
     ) -> PaymentResponse:
         """Register a new order within PayU API.
 
@@ -247,7 +263,25 @@ class PayUClient:
         :param products: List of product data dictionaries.
         :param notify_url: Callback URL for notifications.
         :param continue_url: URL to redirect the customer after payment.
-        :param kwargs: Extra params passed to order data.
+        :param validity_time: Order validity time in seconds.
+        :param additional_description: Additional order description.
+        :param visible_description: Description visible to the buyer.
+        :param statement_description: Description for bank statement.
+        :param card_on_file: Card-on-file indicator (e.g. "FIRST", "STANDARD").
+        :param recurring: Recurring payment indicator
+            (e.g. "FIRST", "STANDARD").
+        :param pay_methods: Payment methods configuration.
+        :param three_ds_authentication: 3DS authentication data.
+        :param risk_data: Risk assessment data.
+        :param device_fingerprint: Device fingerprint string.
+        :param shopping_carts: List of shopping cart entries.
+        :param submerchant: Submerchant (marketplace) data.
+        :param credit: Credit/installment data.
+        :param mcp_data: Multi-currency pricing data.
+        :param settings: Order settings (e.g. invoice disabled).
+        :param donation: Donation data.
+        :param kwargs: Extra params passed to order data
+            for forward compatibility.
         :return: Normalized JSON response from API.
         """
         url = urljoin(self.api_url, "/api/v2_1/orders")
@@ -270,10 +304,29 @@ class PayUClient:
                 ],
             }
         )
-        if notify_url:
-            data["notifyUrl"] = notify_url  # type: ignore[index]
-        if continue_url:
-            data["continueUrl"] = continue_url  # type: ignore[index]
+        optional_fields = {
+            "notifyUrl": notify_url,
+            "continueUrl": continue_url,
+            "validityTime": validity_time,
+            "additionalDescription": additional_description,
+            "visibleDescription": visible_description,
+            "statementDescription": statement_description,
+            "cardOnFile": card_on_file,
+            "recurring": recurring,
+            "payMethods": pay_methods,
+            "threeDsAuthentication": three_ds_authentication,
+            "riskData": risk_data,
+            "deviceFingerprint": device_fingerprint,
+            "shoppingCarts": shopping_carts,
+            "submerchant": submerchant,
+            "credit": credit,
+            "mcpData": mcp_data,
+            "settings": settings,
+            "donation": donation,
+        }
+        for key, value in optional_fields.items():
+            if value is not None:
+                data[key] = value  # type: ignore[index]
         if buyer:
             data["buyer"] = buyer  # type: ignore[index]
         data.update(kwargs)  # type: ignore[union-attr]

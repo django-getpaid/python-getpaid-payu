@@ -285,6 +285,42 @@ class TestNewOrder:
                 order_id="ext-1",
             )
 
+    async def test_new_order_with_all_params(self, payu_client, respx_mock):
+        """All optional order creation fields are passed correctly."""
+        import json as json_mod
+
+        order_response = {
+            "status": {"statusCode": "SUCCESS"},
+            "orderId": "ORDER123",
+            "extOrderId": "ext-1",
+            "redirectUri": "https://example.com/redirect",
+        }
+        route = respx_mock.post(
+            "https://secure.payu.com/api/v2_1/orders"
+        ).respond(json=order_response, status_code=200)
+
+        await payu_client.new_order(
+            amount=Decimal("100.00"),
+            currency="PLN",
+            order_id="ext-1",
+            description="Test",
+            validity_time="86400",
+            additional_description="Extra info",
+            visible_description="Visible to buyer",
+            statement_description="SHOP*ORDER123",
+            card_on_file="FIRST",
+            recurring="FIRST",
+            device_fingerprint="abc123",
+        )
+        body = json_mod.loads(route.calls.last.request.content)
+        assert body["validityTime"] == "86400"
+        assert body["additionalDescription"] == "Extra info"
+        assert body["visibleDescription"] == "Visible to buyer"
+        assert body["statementDescription"] == "SHOP*ORDER123"
+        assert body["cardOnFile"] == "FIRST"
+        assert body["recurring"] == "FIRST"
+        assert body["deviceFingerprint"] == "abc123"
+
 
 class TestRefund:
     """Tests for refund API method."""
