@@ -294,22 +294,38 @@ class PayUClient:
         order_id: str,
         amount: Decimal | float | None = None,
         description: str | None = None,
+        ext_refund_id: str | None = None,
+        currency_code: str | None = None,
+        bank_description: str | None = None,
+        refund_type: str | None = None,
     ) -> RefundResponse:
         """Request a refund for an existing order.
 
         :param order_id: PayU order identifier.
         :param amount: Optional partial refund amount.
         :param description: Refund description.
+        :param ext_refund_id: External refund identifier.
+        :param currency_code: ISO 4217 currency code.
+        :param bank_description: Bank operation description.
+        :param refund_type: Refund type ("REFUND_PAYMENT_STANDARD" or "FAST").
         :return: Normalized JSON response from API.
         """
         url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/refunds")
-        data: dict = {
+        refund_data: dict = {
             "description": description if description else "Refund",
         }
         if amount is not None:
-            data["amount"] = amount
+            refund_data["amount"] = amount
+        if ext_refund_id is not None:
+            refund_data["extRefundId"] = ext_refund_id
+        if currency_code is not None:
+            refund_data["currencyCode"] = currency_code
+        if bank_description is not None:
+            refund_data["bankDescription"] = bank_description
+        if refund_type is not None:
+            refund_data["type"] = refund_type
         encoded = json.dumps(
-            {"refund": self._centify(data), "orderId": order_id},
+            {"refund": self._centify(refund_data)},
             default=str,
         )
         self.last_response = await self._request(

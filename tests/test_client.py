@@ -328,6 +328,74 @@ class TestRefund:
         with pytest.raises(RefundFailure, match="Error creating refund"):
             await payu_client.refund(order_id="ORDER123")
 
+    async def test_refund_body_has_no_order_id(self, payu_client, respx_mock):
+        """orderId should NOT be in the request body (it's in the URL)."""
+        import json
+
+        refund_response = {
+            "orderId": "ORDER123",
+            "refund": {
+                "refundId": "REF1",
+                "amount": 5000,
+                "currencyCode": "PLN",
+                "description": "Refund",
+                "creationDateTime": "2024-01-01T00:00:00",
+                "status": "PENDING",
+                "statusDateTime": "2024-01-01T00:00:00",
+            },
+            "status": {"statusCode": "SUCCESS", "statusDesc": "Refund queued"},
+        }
+        route = respx_mock.post(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/refunds"
+        ).respond(json=refund_response, status_code=200)
+
+        await payu_client.refund(order_id="ORDER123")
+        body = json.loads(route.calls.last.request.content)
+        assert "orderId" not in body
+        assert "refund" in body
+
+    async def test_refund_with_all_params(self, payu_client, respx_mock):
+        """All refund parameters are correctly passed."""
+        import json
+
+        refund_response = {
+            "orderId": "ORDER123",
+            "refund": {
+                "refundId": "REF1",
+                "amount": 5000,
+                "currencyCode": "PLN",
+                "description": "Partial refund",
+                "creationDateTime": "2024-01-01T00:00:00",
+                "status": "PENDING",
+                "statusDateTime": "2024-01-01T00:00:00",
+                "extRefundId": "ext-ref-1",
+                "bankDescription": "Refund for order",
+                "type": "REFUND_PAYMENT_STANDARD",
+            },
+            "status": {"statusCode": "SUCCESS", "statusDesc": "Refund queued"},
+        }
+        route = respx_mock.post(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/refunds"
+        ).respond(json=refund_response, status_code=200)
+
+        await payu_client.refund(
+            order_id="ORDER123",
+            amount=Decimal("50.00"),
+            description="Partial refund",
+            ext_refund_id="ext-ref-1",
+            currency_code="PLN",
+            bank_description="Refund for order",
+            refund_type="REFUND_PAYMENT_STANDARD",
+        )
+        body = json.loads(route.calls.last.request.content)
+        refund = body["refund"]
+        assert refund["description"] == "Partial refund"
+        assert refund["amount"] == "5000"
+        assert refund["extRefundId"] == "ext-ref-1"
+        assert refund["currencyCode"] == "PLN"
+        assert refund["bankDescription"] == "Refund for order"
+        assert refund["type"] == "REFUND_PAYMENT_STANDARD"
+
 
 class TestCancelOrder:
     """Tests for cancel_order API method."""
