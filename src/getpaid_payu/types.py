@@ -3,7 +3,6 @@ from enum import StrEnum
 from enum import auto
 from enum import unique
 from typing import Any
-from typing import Literal
 from typing import TypedDict
 
 
