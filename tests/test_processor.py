@@ -176,8 +176,8 @@ class TestCharge:
 
     async def test_charge_success(self, respx_mock):
         respx_mock.post(AUTH_URL).respond(json=OAUTH_RESPONSE)
-        respx_mock.put(
-            "https://secure.snd.payu.com/api/v2_1/orders/EXT-123/status"
+        respx_mock.post(
+            "https://secure.snd.payu.com/api/v2_1/orders/EXT-123/captures"
         ).respond(
             json={
                 "status": {
@@ -199,8 +199,8 @@ class TestCharge:
 
     async def test_charge_with_explicit_amount(self, respx_mock):
         respx_mock.post(AUTH_URL).respond(json=OAUTH_RESPONSE)
-        respx_mock.put(
-            "https://secure.snd.payu.com/api/v2_1/orders/EXT-123/status"
+        respx_mock.post(
+            "https://secure.snd.payu.com/api/v2_1/orders/EXT-123/captures"
         ).respond(
             json={
                 "status": {
@@ -220,8 +220,8 @@ class TestCharge:
 
     async def test_charge_failure_raises(self, respx_mock):
         respx_mock.post(AUTH_URL).respond(json=OAUTH_RESPONSE)
-        respx_mock.put(
-            "https://secure.snd.payu.com/api/v2_1/orders/EXT-123/status"
+        respx_mock.post(
+            "https://secure.snd.payu.com/api/v2_1/orders/EXT-123/captures"
         ).respond(
             json={"error": "Bad request"},
             status_code=400,
