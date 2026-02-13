@@ -649,3 +649,73 @@ class TestGetRefunds:
 
         with pytest.raises(CommunicationError):
             await payu_client.get_refund("ORDER123", "REF1")
+
+
+class TestPayout:
+    """Tests for payout API methods."""
+
+    async def test_create_payout_success(self, payu_client, respx_mock):
+        payout_response = {
+            "payout": {"payoutId": "PAY1", "status": "PENDING"},
+            "status": {"statusCode": "SUCCESS"},
+        }
+        respx_mock.post("https://secure.payu.com/api/v2_1/payouts").respond(
+            json=payout_response, status_code=200
+        )
+
+        result = await payu_client.create_payout(
+            shop_id="SHOP1",
+            amount=10000,
+            description="Monthly payout",
+        )
+        assert result["status"]["statusCode"] == "SUCCESS"
+
+    async def test_create_payout_failure(self, payu_client, respx_mock):
+        respx_mock.post("https://secure.payu.com/api/v2_1/payouts").respond(
+            status_code=400, json={"error": "Bad request"}
+        )
+
+        with pytest.raises(GetPaidException):
+            await payu_client.create_payout(
+                shop_id="SHOP1", amount=10000, description="Payout"
+            )
+
+    async def test_get_payout_success(self, payu_client, respx_mock):
+        payout_response = {
+            "payout": {"payoutId": "PAY1", "status": "REALIZED"},
+            "status": {"statusCode": "SUCCESS"},
+        }
+        respx_mock.get("https://secure.payu.com/api/v2_1/payouts/PAY1").respond(
+            json=payout_response, status_code=200
+        )
+
+        result = await payu_client.get_payout("PAY1")
+        assert result["payout"]["payoutId"] == "PAY1"
+
+    async def test_get_payout_failure(self, payu_client, respx_mock):
+        respx_mock.get("https://secure.payu.com/api/v2_1/payouts/PAY1").respond(
+            status_code=404, json={"error": "Not found"}
+        )
+
+        with pytest.raises(CommunicationError):
+            await payu_client.get_payout("PAY1")
+
+
+class TestDeleteToken:
+    """Tests for delete_token API method."""
+
+    async def test_delete_token_success(self, payu_client, respx_mock):
+        respx_mock.delete(
+            "https://secure.payu.com/api/v2_1/tokens/TOKC_ABC123"
+        ).respond(status_code=204)
+
+        await payu_client.delete_token("TOKC_ABC123")
+        assert payu_client.last_response.status_code == 204
+
+    async def test_delete_token_failure(self, payu_client, respx_mock):
+        respx_mock.delete(
+            "https://secure.payu.com/api/v2_1/tokens/TOKC_ABC123"
+        ).respond(status_code=404, json={"error": "Not found"})
+
+        with pytest.raises(GetPaidException):
+            await payu_client.delete_token("TOKC_ABC123")

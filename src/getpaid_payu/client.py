@@ -23,6 +23,7 @@ from .types import ChargeResponse
 from .types import Currency
 from .types import PaymentMethodsResponse
 from .types import PaymentResponse
+from .types import PayoutResponse
 from .types import ProductData
 from .types import RefundDetailRecord
 from .types import RefundResponse
@@ -513,5 +514,86 @@ class PayUClient:
             return self.last_response.json()
         raise CommunicationError(
             "Error retrieving refund",
+            context={"raw_response": self.last_response},
+        )
+
+    @ensure_auth
+    async def create_payout(
+        self,
+        shop_id: str,
+        amount: int | None = None,
+        description: str | None = None,
+        ext_payout_id: str | None = None,
+    ) -> PayoutResponse:
+        """Create a payout to withdraw funds from PayU account.
+
+        :param shop_id: PayU shop identifier.
+        :param amount: Payout amount in lowest currency unit.
+            If None, full available balance.
+        :param description: Payout description.
+        :param ext_payout_id: External payout identifier.
+        :return: Payout response.
+        """
+        url = urljoin(self.api_url, "/api/v2_1/payouts")
+        payout_data: dict = {"shopId": shop_id}
+        payout_obj: dict = {}
+        if amount is not None:
+            payout_obj["amount"] = amount
+        if description is not None:
+            payout_obj["description"] = description
+        if ext_payout_id is not None:
+            payout_obj["extPayoutId"] = ext_payout_id
+        if payout_obj:
+            payout_data["payout"] = payout_obj
+        encoded = json.dumps(payout_data, default=str)
+        self.last_response = await self._request(
+            "POST",
+            url,
+            headers=self._headers(),
+            content=encoded,
+        )
+        if self.last_response.status_code == 200:
+            return self.last_response.json()
+        raise GetPaidException(
+            "Error creating payout",
+            context={"raw_response": self.last_response},
+        )
+
+    @ensure_auth
+    async def get_payout(self, payout_id: str) -> PayoutResponse:
+        """Retrieve payout details.
+
+        :param payout_id: PayU payout identifier.
+        :return: Payout response.
+        """
+        url = urljoin(self.api_url, f"/api/v2_1/payouts/{payout_id}")
+        self.last_response = await self._request(
+            "GET",
+            url,
+            headers=self._headers(),
+        )
+        if self.last_response.status_code == 200:
+            return self.last_response.json()
+        raise CommunicationError(
+            "Error retrieving payout",
+            context={"raw_response": self.last_response},
+        )
+
+    @ensure_auth
+    async def delete_token(self, token: str) -> None:
+        """Delete a stored payment token.
+
+        :param token: The token value to delete.
+        """
+        url = urljoin(self.api_url, f"/api/v2_1/tokens/{token}")
+        self.last_response = await self._request(
+            "DELETE",
+            url,
+            headers=self._headers(),
+        )
+        if self.last_response.status_code in [200, 204]:
+            return
+        raise GetPaidException(
+            "Error deleting token",
             context={"raw_response": self.last_response},
         )
