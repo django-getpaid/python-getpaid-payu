@@ -17,7 +17,7 @@ from .conftest import FakePayment
 from .conftest import make_mock_payment
 
 
-SECOND_KEY = PAYU_CONFIG["second_key"]
+SECOND_KEY = str(PAYU_CONFIG["second_key"])
 
 
 def _make_processor(payment=None, config=None):
@@ -29,7 +29,7 @@ def _make_processor(payment=None, config=None):
     return PayUProcessor(payment=payment, config=config)
 
 
-def _sign(body: str, key: str = SECOND_KEY, algo="MD5"):
+def _sign(body: str, key: str = SECOND_KEY, algo: str = "MD5"):
     """Compute signature for a body string."""
     hasher = getattr(hashlib, algo.replace("-", "").lower())
     return hasher(f"{body}{key}".encode()).hexdigest()
@@ -68,7 +68,7 @@ class TestVerifyCallback:
     async def test_missing_signature_raises(self):
         processor = _make_processor()
         with pytest.raises(InvalidCallbackError, match="NO SIGNATURE"):
-            await processor.verify_callback(data={}, headers={})
+            await processor.verify_callback(data={"_raw_body": ""}, headers={})
 
     async def test_bad_signature_raises(self):
         body = '{"order":{"status":"COMPLETED"}}'
@@ -99,9 +99,32 @@ class TestVerifyCallback:
         processor = _make_processor()
         with pytest.raises(InvalidCallbackError, match="NO SIGNATURE"):
             await processor.verify_callback(
-                data={},
+                data={"_raw_body": ""},
                 headers={"openpayu-signature": ""},
             )
+
+    async def test_missing_raw_body_raises(self):
+        """Missing _raw_body key raises clear error."""
+        processor = _make_processor()
+        with pytest.raises(InvalidCallbackError, match="Missing _raw_body"):
+            await processor.verify_callback(
+                data={},
+                headers={"openpayu-signature": "signature=abc;algorithm=MD5"},
+            )
+
+    async def test_unsupported_algorithm_raises(self):
+        """Unsupported hash algorithm raises clear error."""
+        body = '{"order":{"status":"COMPLETED"}}'
+        headers = {
+            "openpayu-signature": (
+                "signature=abc;algorithm=SHAKE-256;sender=300746"
+            ),
+        }
+        data = {"_raw_body": body}
+
+        processor = _make_processor()
+        with pytest.raises(InvalidCallbackError, match="Unsupported hash"):
+            await processor.verify_callback(data=data, headers=headers)
 
 
 class TestHandleCallbackOrder:

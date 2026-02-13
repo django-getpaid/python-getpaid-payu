@@ -1,5 +1,6 @@
 """Tests for PayUProcessor: prepare, fetch, charge, release, refund."""
 
+import json
 from decimal import Decimal
 
 import pytest
@@ -87,8 +88,6 @@ class TestPrepareTransaction:
         await processor.prepare_transaction()
 
         request = route.calls[0].request
-        import json
-
         body = json.loads(request.content)
         assert (
             body["notifyUrl"]
@@ -112,8 +111,6 @@ class TestPrepareTransaction:
         await processor.prepare_transaction(customer_ip="192.168.1.1")
 
         request = route.calls[0].request
-        import json
-
         body = json.loads(request.content)
         assert body["customerIp"] == "192.168.1.1"
 
@@ -393,6 +390,44 @@ class TestBuildPaywallContext:
         context = processor._build_paywall_context(customer_ip="10.0.0.1")
 
         assert context["customer_ip"] == "10.0.0.1"
+
+    def test_empty_buyer_data_excluded(self):
+        """Empty buyer dict is not included in context."""
+        payment = make_mock_payment()
+        payment.order.get_buyer_info.return_value = {}
+        processor = _make_processor(payment=payment)
+        context = processor._build_paywall_context()
+
+        assert "buyer" not in context
+
+
+class TestContinueUrlMapping:
+    """Tests that continue_url is correctly mapped to continueUrl."""
+
+    async def test_continue_url_sent_as_camel_case(self, respx_mock):
+        """continue_url config is mapped to continueUrl in PayU API."""
+        respx_mock.post(AUTH_URL).respond(json=OAUTH_RESPONSE)
+        route = respx_mock.post(ORDERS_URL).respond(
+            json={
+                "status": {"statusCode": "SUCCESS"},
+                "orderId": "O1",
+                "extOrderId": "test-payment-123",
+                "redirectUri": "https://payu.com/pay",
+            },
+            status_code=200,
+        )
+
+        processor = _make_processor()
+        await processor.prepare_transaction()
+
+        request = route.calls[0].request
+        body = json.loads(request.content)
+        assert (
+            body["continueUrl"]
+            == "https://shop.example.com/payments/success/test-payment-123"
+        )
+        # Snake_case key should NOT be in the body
+        assert "continue_url" not in body
 
 
 class TestGetClient:

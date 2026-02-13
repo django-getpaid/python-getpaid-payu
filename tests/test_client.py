@@ -84,6 +84,11 @@ class TestCentify:
         assert PayUClient._centify("hello") == "hello"
         assert PayUClient._centify(42) == 42
 
+    def test_none_value_in_convertable_key(self):
+        """None values in convertable keys are passed through unchanged."""
+        result = PayUClient._centify({"amount": None, "name": "Test"})
+        assert result == {"amount": None, "name": "Test"}
+
 
 class TestNormalize:
     """Tests for PayUClient._normalize class method."""
@@ -153,6 +158,11 @@ class TestNormalize:
     def test_plain_value(self):
         assert PayUClient._normalize("hello") == "hello"
         assert PayUClient._normalize(42) == 42
+
+    def test_none_value_in_convertable_key(self):
+        """None values in convertable keys are passed through unchanged."""
+        result = PayUClient._normalize({"amount": None, "name": "Test"})
+        assert result == {"amount": None, "name": "Test"}
 
 
 @pytest.fixture()

@@ -46,6 +46,12 @@ class PayUClient:
     Uses ``httpx.AsyncClient`` for all HTTP communication.
     OAuth2 token is lazily obtained on the first API call via the
     ``ensure_auth`` decorator.
+
+    Can be used as an async context manager for connection reuse::
+
+        async with PayUClient(...) as client:
+            await client.new_order(...)
+            await client.refund(...)
     """
 
     last_response: httpx.Response | None = None
@@ -72,12 +78,61 @@ class PayUClient:
         self.oauth_secret = oauth_secret
         self._token: str | None = None
         self._token_expires_at: float = 0.0
+        self._client: httpx.AsyncClient | None = None
+        self._owns_client: bool = False
+
+    async def __aenter__(self) -> "PayUClient":
+        self._client = httpx.AsyncClient()
+        self._owns_client = True
+        return self
+
+    async def __aexit__(self, *exc) -> None:
+        if self._owns_client and self._client is not None:
+            await self._client.aclose()
+            self._client = None
+            self._owns_client = False
+
+    async def _get_http_client(self) -> httpx.AsyncClient:
+        """Return the shared client or create a one-shot client."""
+        if self._client is not None:
+            return self._client
+        # Fallback: create a new client per request (no reuse)
+        return httpx.AsyncClient()
+
+    async def _request(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: dict[str, str] | None = None,
+        content: str | None = None,
+        follow_redirects: bool = True,
+    ) -> httpx.Response:
+        """Execute an HTTP request, handling client lifecycle."""
+        if self._client is not None:
+            return await self._client.request(
+                method,
+                url,
+                headers=headers,
+                content=content,
+                follow_redirects=follow_redirects,
+            )
+        # No shared client — create and close one for this request
+        async with httpx.AsyncClient() as client:
+            return await client.request(
+                method,
+                url,
+                headers=headers,
+                content=content,
+                follow_redirects=follow_redirects,
+            )
 
     async def _authorize(self) -> None:
         """Obtain OAuth2 access token from PayU."""
         url = urljoin(self.api_url, "/pl/standard/user/oauth/authorize")
-        async with httpx.AsyncClient() as client:
-            self.last_response = await client.post(
+        # Auth uses form data, not JSON — use a dedicated client call
+        if self._client is not None:
+            self.last_response = await self._client.post(
                 url,
                 data={
                     "grant_type": "client_credentials",
@@ -85,6 +140,16 @@ class PayUClient:
                     "client_secret": self.oauth_secret,
                 },
             )
+        else:
+            async with httpx.AsyncClient() as client:
+                self.last_response = await client.post(
+                    url,
+                    data={
+                        "grant_type": "client_credentials",
+                        "client_id": self.oauth_id,
+                        "client_secret": self.oauth_secret,
+                    },
+                )
         if self.last_response.status_code == 200:
             data = self.last_response.json()
             self._token = (
@@ -97,14 +162,12 @@ class PayUClient:
                 context={"raw_response": self.last_response},
             )
 
-    def _headers(self, **kwargs: str) -> dict[str, str]:
+    def _headers(self) -> dict[str, str]:
         """Build request headers with authorization."""
-        data: dict[str, str] = {
+        return {
             "Authorization": self._token or "",
             "Content-Type": "application/json",
         }
-        data.update(kwargs)
-        return data
 
     @classmethod
     def _centify(
@@ -115,13 +178,14 @@ class PayUClient:
 
         Traverses the data structure recursively and multiplies
         values of convertable keys by 100, returning them as strings.
+        None values in convertable keys are passed through unchanged.
         """
         data = deepcopy(data)
         if hasattr(data, "items"):
             return {
                 k: (
                     str(int(v * 100))
-                    if k in cls._convertables
+                    if k in cls._convertables and v is not None
                     else cls._centify(v)
                 )
                 for k, v in data.items()  # type: ignore[union-attr]
@@ -139,13 +203,14 @@ class PayUClient:
 
         Traverses the data structure recursively and divides
         values of convertable keys by 100, returning Decimals.
+        None values in convertable keys are passed through unchanged.
         """
         data = deepcopy(data)
         if hasattr(data, "items"):
             return {
                 k: (
                     Decimal(v) / 100
-                    if k in cls._convertables
+                    if k in cls._convertables and v is not None
                     else cls._normalize(v)
                 )
                 for k, v in data.items()  # type: ignore[union-attr]
@@ -165,6 +230,7 @@ class PayUClient:
         buyer: BuyerData | None = None,
         products: list[ProductData] | None = None,
         notify_url: str | None = None,
+        continue_url: str | None = None,
         **kwargs: str,
     ) -> PaymentResponse:
         """Register a new order within PayU API.
@@ -177,7 +243,8 @@ class PayUClient:
         :param buyer: Buyer data dictionary.
         :param products: List of product data dictionaries.
         :param notify_url: Callback URL for notifications.
-        :param kwargs: Extra params passed to headers and order data.
+        :param continue_url: URL to redirect the customer after payment.
+        :param kwargs: Extra params passed to order data.
         :return: Normalized JSON response from API.
         """
         url = urljoin(self.api_url, "/api/v2_1/orders")
@@ -202,18 +269,19 @@ class PayUClient:
         )
         if notify_url:
             data["notifyUrl"] = notify_url  # type: ignore[index]
+        if continue_url:
+            data["continueUrl"] = continue_url  # type: ignore[index]
         if buyer:
             data["buyer"] = buyer  # type: ignore[index]
-        headers = self._headers(**kwargs)
         data.update(kwargs)  # type: ignore[union-attr]
         encoded = json.dumps(data, default=str)
-        async with httpx.AsyncClient() as client:
-            self.last_response = await client.post(
-                url,
-                headers=headers,
-                content=encoded,
-                follow_redirects=False,
-            )
+        self.last_response = await self._request(
+            "POST",
+            url,
+            headers=self._headers(),
+            content=encoded,
+            follow_redirects=False,
+        )
         if self.last_response.status_code in [200, 201, 302]:
             return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise LockFailure(
@@ -227,32 +295,30 @@ class PayUClient:
         order_id: str,
         amount: Decimal | float | None = None,
         description: str | None = None,
-        **kwargs: str,
     ) -> RefundResponse:
         """Request a refund for an existing order.
 
         :param order_id: PayU order identifier.
         :param amount: Optional partial refund amount.
         :param description: Refund description.
-        :param kwargs: Extra params passed to headers.
         :return: Normalized JSON response from API.
         """
         url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/refunds")
         data: dict = {
             "description": description if description else "Refund",
         }
-        if amount:
+        if amount is not None:
             data["amount"] = amount
         encoded = json.dumps(
             {"refund": self._centify(data), "orderId": order_id},
             default=str,
         )
-        async with httpx.AsyncClient() as client:
-            self.last_response = await client.post(
-                url,
-                headers=self._headers(**kwargs),
-                content=encoded,
-            )
+        self.last_response = await self._request(
+            "POST",
+            url,
+            headers=self._headers(),
+            content=encoded,
+        )
         if self.last_response.status_code == 200:
             return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise RefundFailure(
@@ -261,20 +327,18 @@ class PayUClient:
         )
 
     @ensure_auth
-    async def cancel_order(
-        self, order_id: str, **kwargs: str
-    ) -> CancellationResponse:
+    async def cancel_order(self, order_id: str) -> CancellationResponse:
         """Cancel an existing order.
 
         :param order_id: PayU order identifier.
-        :param kwargs: Extra params passed to headers.
         :return: Normalized JSON response from API.
         """
         url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}")
-        async with httpx.AsyncClient() as client:
-            self.last_response = await client.delete(
-                url, headers=self._headers(**kwargs)
-            )
+        self.last_response = await self._request(
+            "DELETE",
+            url,
+            headers=self._headers(),
+        )
         if self.last_response.status_code == 200:
             return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise GetPaidException(
@@ -283,11 +347,10 @@ class PayUClient:
         )
 
     @ensure_auth
-    async def capture(self, order_id: str, **kwargs: str) -> ChargeResponse:
+    async def capture(self, order_id: str) -> ChargeResponse:
         """Capture (charge) a previously authorized order.
 
         :param order_id: PayU order identifier.
-        :param kwargs: Extra params passed to headers.
         :return: Normalized JSON response from API.
         """
         url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/status")
@@ -296,12 +359,12 @@ class PayUClient:
             "orderStatus": OrderStatus.COMPLETED,
         }
         encoded = json.dumps(data, default=str)
-        async with httpx.AsyncClient() as client:
-            self.last_response = await client.put(
-                url,
-                headers=self._headers(**kwargs),
-                content=encoded,
-            )
+        self.last_response = await self._request(
+            "PUT",
+            url,
+            headers=self._headers(),
+            content=encoded,
+        )
         if self.last_response.status_code == 200:
             return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise ChargeFailure(
@@ -310,20 +373,18 @@ class PayUClient:
         )
 
     @ensure_auth
-    async def get_order_info(
-        self, order_id: str, **kwargs: str
-    ) -> RetrieveOrderInfoResponse:
+    async def get_order_info(self, order_id: str) -> RetrieveOrderInfoResponse:
         """Retrieve order details from PayU.
 
         :param order_id: PayU order identifier.
-        :param kwargs: Extra params passed to headers.
         :return: Normalized JSON response from API.
         """
         url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}")
-        async with httpx.AsyncClient() as client:
-            self.last_response = await client.get(
-                url, headers=self._headers(**kwargs)
-            )
+        self.last_response = await self._request(
+            "GET",
+            url,
+            headers=self._headers(),
+        )
         if self.last_response.status_code == 200:
             return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise CommunicationError(
@@ -331,18 +392,18 @@ class PayUClient:
         )
 
     @ensure_auth
-    async def get_shop_info(self, shop_id: str, **kwargs: str) -> dict:
+    async def get_shop_info(self, shop_id: str) -> dict:
         """Retrieve shop information from PayU.
 
         :param shop_id: Public shop identifier.
-        :param kwargs: Extra params passed to headers.
         :return: Normalized JSON response from API.
         """
         url = urljoin(self.api_url, f"/api/v2_1/shops/{shop_id}")
-        async with httpx.AsyncClient() as client:
-            self.last_response = await client.get(
-                url, headers=self._headers(**kwargs)
-            )
+        self.last_response = await self._request(
+            "GET",
+            url,
+            headers=self._headers(),
+        )
         if self.last_response.status_code == 200:
             return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise CommunicationError(

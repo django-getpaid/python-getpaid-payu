@@ -2,8 +2,10 @@
 
 import contextlib
 import hashlib
+import hmac
 import logging
 from decimal import Decimal
+from typing import Any
 from typing import ClassVar
 
 from getpaid_core.exceptions import InvalidCallbackError
@@ -21,6 +23,12 @@ from .types import ResponseStatus
 
 
 logger = logging.getLogger(__name__)
+
+_SUPPORTED_ALGORITHMS: dict[str, Any] = {
+    "MD5": hashlib.md5,
+    "SHA-256": hashlib.sha256,
+    "SHA256": hashlib.sha256,
+}
 
 
 class PayUProcessor(BaseProcessor):
@@ -82,8 +90,10 @@ class PayUProcessor(BaseProcessor):
             "currency": self.payment.currency,
             "amount": self.payment.amount_required,
             "products": products,
-            "buyer": buyer_data,
         }
+
+        if buyer_data:
+            context["buyer"] = buyer_data
 
         notify_url = self.get_setting("notify_url")
         if notify_url:
@@ -117,12 +127,18 @@ class PayUProcessor(BaseProcessor):
         """Verify PayU callback signature.
 
         Expects:
-        - data["_raw_body"]: raw request body string
+        - data["_raw_body"]: raw request body string (required)
         - headers: lowercased header dict
 
-        Raises InvalidCallbackError if signature is missing
-        or invalid.
+        Raises InvalidCallbackError if signature is missing,
+        invalid, or _raw_body is not provided.
         """
+        if "_raw_body" not in data:
+            raise InvalidCallbackError(
+                "Missing _raw_body in callback data. "
+                "The framework adapter must inject the raw HTTP body string."
+            )
+
         raw_header = (
             headers.get("openpayu-signature")
             or headers.get("x-openpayu-signature")
@@ -137,12 +153,18 @@ class PayUProcessor(BaseProcessor):
         algo_name = parsed.get("algorithm", "MD5")
         signature = parsed.get("signature", "")
         second_key = self.get_setting("second_key")
-        algorithm = getattr(hashlib, algo_name.replace("-", "").lower())
 
-        body = data.get("_raw_body", "")
+        algorithm = _SUPPORTED_ALGORITHMS.get(algo_name)
+        if algorithm is None:
+            raise InvalidCallbackError(
+                f"Unsupported hash algorithm: {algo_name}. "
+                f"Supported: {', '.join(sorted(_SUPPORTED_ALGORITHMS))}"
+            )
+
+        body = data["_raw_body"]
         expected = algorithm(f"{body}{second_key}".encode()).hexdigest()
 
-        if expected != signature:
+        if not hmac.compare_digest(expected, signature):
             logger.error(
                 "Received bad signature for payment %s! "
                 "Got '%s', expected '%s'",
@@ -210,7 +232,8 @@ class PayUProcessor(BaseProcessor):
         """PULL flow: fetch payment status from PayU API."""
         client = self._get_client()
         response = await client.get_order_info(self.payment.external_id)
-        order_data = response.get("orders", [None])[0]
+        orders = response.get("orders") or []
+        order_data = orders[0] if orders else None
         status = order_data.get("status") if order_data else None
 
         status_map = {
