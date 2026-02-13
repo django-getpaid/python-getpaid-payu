@@ -9,5 +9,9 @@ wheels/
 # Virtual environments
 .venv
 
+# Coverage
+.coverage
+htmlcov/
+
 # Implementation plans (local only)
 .plans/
