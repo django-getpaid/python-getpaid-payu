@@ -21,6 +21,7 @@ from .types import BuyerData
 from .types import CancellationResponse
 from .types import ChargeResponse
 from .types import Currency
+from .types import PaymentMethodsResponse
 from .types import PaymentResponse
 from .types import ProductData
 from .types import RefundResponse
@@ -420,5 +421,29 @@ class PayUClient:
             return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise CommunicationError(
             "Error getting shop info",
+            context={"raw_response": self.last_response},
+        )
+
+    @ensure_auth
+    async def get_payment_methods(
+        self, lang: str | None = None
+    ) -> PaymentMethodsResponse:
+        """Retrieve all available payment methods.
+
+        :param lang: ISO 639-1 language code for method names.
+        :return: Payment methods response.
+        """
+        url = urljoin(self.api_url, "/api/v2_1/paymethods")
+        if lang:
+            url = f"{url}?lang={lang}"
+        self.last_response = await self._request(
+            "GET",
+            url,
+            headers=self._headers(),
+        )
+        if self.last_response.status_code == 200:
+            return self.last_response.json()
+        raise CommunicationError(
+            "Error retrieving payment methods",
             context={"raw_response": self.last_response},
         )

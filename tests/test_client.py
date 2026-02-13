@@ -521,3 +521,50 @@ class TestGetShopInfo:
         )
         with pytest.raises(CommunicationError, match="Error getting shop info"):
             await payu_client.get_shop_info(shop_id="SHOP1")
+
+
+class TestGetPaymentMethods:
+    """Tests for get_payment_methods API method."""
+
+    async def test_get_payment_methods_success(self, payu_client, respx_mock):
+        methods_response = {
+            "payByLinks": [
+                {
+                    "value": "blik",
+                    "brandImageUrl": "https://static.payu.com/blik.png",
+                    "name": "BLIK",
+                    "status": "ENABLED",
+                    "minAmount": 1,
+                    "maxAmount": 99999999,
+                }
+            ],
+            "cardTokens": [],
+            "status": {"statusCode": "SUCCESS"},
+        }
+        respx_mock.get("https://secure.payu.com/api/v2_1/paymethods").respond(
+            json=methods_response, status_code=200
+        )
+
+        result = await payu_client.get_payment_methods()
+        assert len(result["payByLinks"]) == 1
+        assert result["payByLinks"][0]["value"] == "blik"
+
+    async def test_get_payment_methods_with_lang(self, payu_client, respx_mock):
+        methods_response = {
+            "payByLinks": [],
+            "status": {"statusCode": "SUCCESS"},
+        }
+        route = respx_mock.get(
+            "https://secure.payu.com/api/v2_1/paymethods",
+        ).respond(json=methods_response, status_code=200)
+
+        await payu_client.get_payment_methods(lang="pl")
+        assert "lang=pl" in str(route.calls.last.request.url)
+
+    async def test_get_payment_methods_failure(self, payu_client, respx_mock):
+        respx_mock.get("https://secure.payu.com/api/v2_1/paymethods").respond(
+            status_code=401, json={"error": "Unauthorized"}
+        )
+
+        with pytest.raises(CommunicationError):
+            await payu_client.get_payment_methods()
