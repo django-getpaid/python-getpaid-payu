@@ -336,7 +336,7 @@ class TestCancelOrder:
         cancel_response = {
             "orderId": "ORDER123",
             "extOrderId": "ext-1",
-            "status": "SUCCESS",
+            "status": {"statusCode": "SUCCESS"},
         }
         respx_mock.delete(
             "https://secure.payu.com/api/v2_1/orders/ORDER123"

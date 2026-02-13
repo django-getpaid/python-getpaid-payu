@@ -279,7 +279,7 @@ class BaseResponse(TypedDict):
 
 
 class CancellationResponse(BaseResponse):
-    status: Literal[ResponseStatus.SUCCESS]
+    status: OrderStatusObj
 
 
 class PaymentResponse(BaseResponse):
