@@ -541,6 +541,11 @@ class TestGetShopInfo:
             "shopId": "SHOP1",
             "name": "Test Shop",
             "currencyCode": "PLN",
+            "balance": {
+                "currencyCode": "PLN",
+                "total": 1234567890,
+                "available": 987654321,
+            },
         }
         respx_mock.get("https://secure.payu.com/api/v2_1/shops/SHOP1").respond(
             json=shop_response, status_code=200
@@ -548,7 +553,7 @@ class TestGetShopInfo:
 
         result = await payu_client.get_shop_info(shop_id="SHOP1")
         assert result["shopId"] == "SHOP1"
-        assert result["name"] == "Test Shop"
+        assert result["balance"]["available"] == Decimal("9876543.21")
 
     async def test_get_shop_info_failure(self, payu_client, respx_mock):
         respx_mock.get("https://secure.payu.com/api/v2_1/shops/SHOP1").respond(

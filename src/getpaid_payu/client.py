@@ -28,6 +28,7 @@ from .types import ProductData
 from .types import RefundDetailRecord
 from .types import RefundResponse
 from .types import RetrieveOrderInfoResponse
+from .types import ShopInfoResponse
 from .types import TransactionResponse
 
 
@@ -461,7 +462,7 @@ class PayUClient:
         )
 
     @ensure_auth
-    async def get_shop_info(self, shop_id: str) -> dict:
+    async def get_shop_info(self, shop_id: str) -> ShopInfoResponse:
         """Retrieve shop information from PayU.
 
         :param shop_id: Public shop identifier.
