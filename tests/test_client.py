@@ -568,3 +568,84 @@ class TestGetPaymentMethods:
 
         with pytest.raises(CommunicationError):
             await payu_client.get_payment_methods()
+
+
+class TestGetTransaction:
+    """Tests for get_transaction API method."""
+
+    async def test_get_transaction_success(self, payu_client, respx_mock):
+        tx_response = {
+            "transactions": [
+                {
+                    "payMethod": {"value": "c"},
+                    "paymentFlow": "CARD",
+                    "resultCode": "000",
+                }
+            ]
+        }
+        respx_mock.get(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/transactions"
+        ).respond(json=tx_response, status_code=200)
+
+        result = await payu_client.get_transaction("ORDER123")
+        assert len(result["transactions"]) == 1
+        assert result["transactions"][0]["paymentFlow"] == "CARD"
+
+    async def test_get_transaction_failure(self, payu_client, respx_mock):
+        respx_mock.get(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/transactions"
+        ).respond(status_code=404, json={"error": "Not found"})
+
+        with pytest.raises(CommunicationError):
+            await payu_client.get_transaction("ORDER123")
+
+
+class TestGetRefunds:
+    """Tests for get_refunds and get_refund API methods."""
+
+    async def test_get_refunds_success(self, payu_client, respx_mock):
+        refunds_response = [
+            {
+                "refundId": "REF1",
+                "amount": 5000,
+                "description": "Refund 1",
+                "status": "FINALIZED",
+            }
+        ]
+        respx_mock.get(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/refunds"
+        ).respond(json=refunds_response, status_code=200)
+
+        result = await payu_client.get_refunds("ORDER123")
+        assert len(result) == 1
+        assert result[0]["refundId"] == "REF1"
+
+    async def test_get_refunds_failure(self, payu_client, respx_mock):
+        respx_mock.get(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/refunds"
+        ).respond(status_code=404, json={"error": "Not found"})
+
+        with pytest.raises(CommunicationError):
+            await payu_client.get_refunds("ORDER123")
+
+    async def test_get_refund_success(self, payu_client, respx_mock):
+        refund_response = {
+            "refundId": "REF1",
+            "amount": 5000,
+            "description": "Refund 1",
+            "status": "FINALIZED",
+        }
+        respx_mock.get(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/refunds/REF1"
+        ).respond(json=refund_response, status_code=200)
+
+        result = await payu_client.get_refund("ORDER123", "REF1")
+        assert result["refundId"] == "REF1"
+
+    async def test_get_refund_failure(self, payu_client, respx_mock):
+        respx_mock.get(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123/refunds/REF1"
+        ).respond(status_code=404, json={"error": "Not found"})
+
+        with pytest.raises(CommunicationError):
+            await payu_client.get_refund("ORDER123", "REF1")

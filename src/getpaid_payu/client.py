@@ -24,8 +24,10 @@ from .types import Currency
 from .types import PaymentMethodsResponse
 from .types import PaymentResponse
 from .types import ProductData
+from .types import RefundDetailRecord
 from .types import RefundResponse
 from .types import RetrieveOrderInfoResponse
+from .types import TransactionResponse
 
 
 def ensure_auth(func: Callable) -> Callable:
@@ -445,5 +447,71 @@ class PayUClient:
             return self.last_response.json()
         raise CommunicationError(
             "Error retrieving payment methods",
+            context={"raw_response": self.last_response},
+        )
+
+    @ensure_auth
+    async def get_transaction(self, order_id: str) -> TransactionResponse:
+        """Retrieve transaction details for an order.
+
+        :param order_id: PayU order identifier.
+        :return: Transaction response.
+        """
+        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/transactions")
+        self.last_response = await self._request(
+            "GET",
+            url,
+            headers=self._headers(),
+        )
+        if self.last_response.status_code == 200:
+            return self.last_response.json()
+        raise CommunicationError(
+            "Error retrieving transaction",
+            context={"raw_response": self.last_response},
+        )
+
+    @ensure_auth
+    async def get_refunds(self, order_id: str) -> list[RefundDetailRecord]:
+        """Retrieve all refunds for an order.
+
+        :param order_id: PayU order identifier.
+        :return: List of refund records.
+        """
+        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/refunds")
+        self.last_response = await self._request(
+            "GET",
+            url,
+            headers=self._headers(),
+        )
+        if self.last_response.status_code == 200:
+            return self.last_response.json()
+        raise CommunicationError(
+            "Error retrieving refunds",
+            context={"raw_response": self.last_response},
+        )
+
+    @ensure_auth
+    async def get_refund(
+        self, order_id: str, refund_id: str
+    ) -> RefundDetailRecord:
+        """Retrieve a specific refund for an order.
+
+        :param order_id: PayU order identifier.
+        :param refund_id: PayU refund identifier.
+        :return: Refund detail record.
+        """
+        url = urljoin(
+            self.api_url,
+            f"/api/v2_1/orders/{order_id}/refunds/{refund_id}",
+        )
+        self.last_response = await self._request(
+            "GET",
+            url,
+            headers=self._headers(),
+        )
+        if self.last_response.status_code == 200:
+            return self.last_response.json()
+        raise CommunicationError(
+            "Error retrieving refund",
             context={"raw_response": self.last_response},
         )
