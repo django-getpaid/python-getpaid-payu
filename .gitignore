@@ -15,3 +15,6 @@ htmlcov/
 
 # Implementation plans (local only)
 .plans/
+
+# Sphinx build output
+docs/_build/

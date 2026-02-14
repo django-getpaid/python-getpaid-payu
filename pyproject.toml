@@ -33,10 +33,16 @@ dev = [
     'pre-commit>=4.0',
     'ty>=0.0.16',
 ]
+docs = [
+    'furo>=2024.8.6',
+    'sphinx>=8.0',
+    'myst-parser>=4.0',
+]
 
 [project.urls]
 Homepage = 'https://github.com/django-getpaid/python-getpaid-payu'
 Repository = 'https://github.com/django-getpaid/python-getpaid-payu'
+Documentation = 'https://getpaid-payu.readthedocs.io/'
 Changelog = 'https://github.com/django-getpaid/python-getpaid-payu/releases'
 
 [build-system]
