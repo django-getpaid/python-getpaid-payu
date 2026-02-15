@@ -46,11 +46,14 @@ class TestVerifyCallback:
                 f"signature={sig};algorithm=MD5;sender=300746"
             ),
         }
-        data = {"_raw_body": body}
+        data = {}
+        config = {**PAYU_CONFIG, "allow_md5_callbacks": True}
 
-        processor = _make_processor()
+        processor = _make_processor(config=config)
         # Should not raise
-        await processor.verify_callback(data=data, headers=headers)
+        await processor.verify_callback(
+            data=data, headers=headers, raw_body=body
+        )
 
     async def test_valid_sha256_signature(self):
         body = '{"order":{"status":"COMPLETED"}}'
@@ -60,10 +63,30 @@ class TestVerifyCallback:
                 f"signature={sig};algorithm=SHA-256;sender=300746"
             ),
         }
-        data = {"_raw_body": body}
+        data = {}
 
         processor = _make_processor()
-        await processor.verify_callback(data=data, headers=headers)
+        await processor.verify_callback(
+            data=data,
+            headers=headers,
+            raw_body=body.encode(),
+        )
+
+    async def test_md5_signature_rejected_by_default(self):
+        body = '{"order":{"status":"COMPLETED"}}'
+        sig = _sign(body, algo="MD5")
+        headers = {
+            "openpayu-signature": (
+                f"signature={sig};algorithm=MD5;sender=300746"
+            ),
+        }
+        processor = _make_processor()
+        with pytest.raises(InvalidCallbackError, match="MD5 signatures"):
+            await processor.verify_callback(
+                data={},
+                headers=headers,
+                raw_body=body,
+            )
 
     async def test_missing_signature_raises(self):
         processor = _make_processor()
@@ -73,7 +96,9 @@ class TestVerifyCallback:
     async def test_bad_signature_raises(self):
         body = '{"order":{"status":"COMPLETED"}}'
         headers = {
-            "openpayu-signature": ("signature=bad_signature;algorithm=MD5"),
+            "openpayu-signature": (
+                "signature=bad_signature;algorithm=SHA-256"
+            ),
         }
         data = {"_raw_body": body}
 
@@ -84,16 +109,16 @@ class TestVerifyCallback:
     async def test_x_openpayu_signature_header(self):
         """Alternate header name works."""
         body = '{"order":{"status":"COMPLETED"}}'
-        sig = _sign(body)
+        sig = _sign(body, algo="SHA-256")
         headers = {
             "x-openpayu-signature": (
-                f"signature={sig};algorithm=MD5;sender=300746"
+                f"signature={sig};algorithm=SHA-256;sender=300746"
             ),
         }
-        data = {"_raw_body": body}
+        data = {}
 
         processor = _make_processor()
-        await processor.verify_callback(data=data, headers=headers)
+        await processor.verify_callback(data=data, headers=headers, raw_body=body)
 
     async def test_empty_signature_header_raises(self):
         processor = _make_processor()
@@ -104,9 +129,9 @@ class TestVerifyCallback:
             )
 
     async def test_missing_raw_body_raises(self):
-        """Missing _raw_body key raises clear error."""
+        """Missing raw callback body raises clear error."""
         processor = _make_processor()
-        with pytest.raises(InvalidCallbackError, match="Missing _raw_body"):
+        with pytest.raises(InvalidCallbackError, match="Missing raw_body"):
             await processor.verify_callback(
                 data={},
                 headers={"openpayu-signature": "signature=abc;algorithm=MD5"},

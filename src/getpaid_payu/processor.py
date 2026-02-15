@@ -127,21 +127,30 @@ class PayUProcessor(BaseProcessor):
         """Verify PayU callback signature.
 
         Expects:
-        - data["_raw_body"]: raw request body string (required)
-        - headers: lowercased header dict
+        - raw_body kwarg (preferred) or data["_raw_body"]
+        - headers with openpayu-signature/x-openpayu-signature
 
         Raises InvalidCallbackError if signature is missing,
         invalid, or _raw_body is not provided.
         """
-        if "_raw_body" not in data:
+        raw_body = kwargs.get("raw_body")
+        if raw_body is None:
+            raw_body = data.get("_raw_body")
+        if raw_body is None:
             raise InvalidCallbackError(
-                "Missing _raw_body in callback data. "
-                "The framework adapter must inject the raw HTTP body string."
+                "Missing raw_body in callback data. "
+                "The framework adapter must pass the raw HTTP body string."
             )
+        if isinstance(raw_body, (bytes, bytearray)):
+            raw_body = raw_body.decode("utf-8")
+        if not isinstance(raw_body, str):
+            raise InvalidCallbackError("raw_body must be a str or bytes value.")
+
+        normalized_headers = {k.lower(): v for k, v in headers.items()}
 
         raw_header = (
-            headers.get("openpayu-signature")
-            or headers.get("x-openpayu-signature")
+            normalized_headers.get("openpayu-signature")
+            or normalized_headers.get("x-openpayu-signature")
             or ""
         )
         if not raw_header:
@@ -150,9 +159,20 @@ class PayUProcessor(BaseProcessor):
         parsed = dict(
             item.split("=", 1) for item in raw_header.split(";") if "=" in item
         )
-        algo_name = parsed.get("algorithm", "MD5")
+        allow_md5 = bool(self.get_setting("allow_md5_callbacks", False))
+        default_algorithm = "MD5" if allow_md5 else "SHA-256"
+        algo_name = parsed.get("algorithm", default_algorithm).upper()
         signature = parsed.get("signature", "")
         second_key = self.get_setting("second_key")
+
+        if not signature:
+            raise InvalidCallbackError("NO SIGNATURE")
+
+        if algo_name == "MD5" and not allow_md5:
+            raise InvalidCallbackError(
+                "MD5 signatures are disabled by default. "
+                "Set allow_md5_callbacks=True to allow legacy callbacks."
+            )
 
         algorithm = _SUPPORTED_ALGORITHMS.get(algo_name)
         if algorithm is None:
@@ -161,8 +181,7 @@ class PayUProcessor(BaseProcessor):
                 f"Supported: {', '.join(sorted(_SUPPORTED_ALGORITHMS))}"
             )
 
-        body = data["_raw_body"]
-        expected = algorithm(f"{body}{second_key}".encode()).hexdigest()
+        expected = algorithm(f"{raw_body}{second_key}".encode()).hexdigest()
 
         if not hmac.compare_digest(expected, signature):
             logger.error(
@@ -221,11 +240,11 @@ class PayUProcessor(BaseProcessor):
             if status == RefundStatus.FINALIZED:
                 amount = Decimal(str(refund_data.get("amount", 0))) / 100
                 self.payment.confirm_refund(amount=amount)  # type: ignore[union-attr]
-                with contextlib.suppress(MachineError):
+                if self.payment.is_fully_refunded():
                     self.payment.mark_as_refunded()  # type: ignore[union-attr]
             elif status == RefundStatus.CANCELED:
                 self.payment.cancel_refund()  # type: ignore[union-attr]
-                with contextlib.suppress(MachineError):
+                if self.payment.is_fully_paid():
                     self.payment.mark_as_paid()  # type: ignore[union-attr]
 
     async def fetch_payment_status(self, **kwargs) -> PaymentStatusResponse:
