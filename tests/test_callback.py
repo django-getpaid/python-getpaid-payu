@@ -96,9 +96,7 @@ class TestVerifyCallback:
     async def test_bad_signature_raises(self):
         body = '{"order":{"status":"COMPLETED"}}'
         headers = {
-            "openpayu-signature": (
-                "signature=bad_signature;algorithm=SHA-256"
-            ),
+            "openpayu-signature": ("signature=bad_signature;algorithm=SHA-256"),
         }
         data = {"_raw_body": body}
 
@@ -118,7 +116,9 @@ class TestVerifyCallback:
         data = {}
 
         processor = _make_processor()
-        await processor.verify_callback(data=data, headers=headers, raw_body=body)
+        await processor.verify_callback(
+            data=data, headers=headers, raw_body=body
+        )
 
     async def test_empty_signature_header_raises(self):
         processor = _make_processor()
