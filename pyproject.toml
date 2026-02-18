@@ -1,6 +1,6 @@
 [project]
 name = 'python-getpaid-payu'
-version = "0.1.1"
+dynamic = ["version"]
 description = 'PayU payment gateway integration for python-getpaid ecosystem.'
 readme = 'README.md'
 license = {text = 'MIT'}
@@ -54,6 +54,9 @@ build-backend = 'hatchling.build'
 
 [tool.hatch.build.targets.wheel]
 packages = ['src/getpaid_payu']
+
+[tool.hatch.version]
+path = "src/getpaid_payu/__init__.py"
 
 [tool.pytest.ini_options]
 testpaths = ['tests']
