@@ -45,6 +45,9 @@ Repository = 'https://github.com/django-getpaid/python-getpaid-payu'
 Documentation = 'https://getpaid-payu.readthedocs.io/'
 Changelog = 'https://github.com/django-getpaid/python-getpaid-payu/releases'
 
+[project.entry-points."getpaid.backends"]
+payu = 'getpaid_payu.processor:PayUProcessor'
+
 [build-system]
 requires = ['hatchling']
 build-backend = 'hatchling.build'
