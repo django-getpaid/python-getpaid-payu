@@ -1,75 +1,37 @@
-# getpaid-payu
+# python-getpaid-payu
 
-[![PyPI](https://img.shields.io/pypi/v/python-getpaid-payu.svg)](https://pypi.org/project/python-getpaid-payu/)
-[![Python Version](https://img.shields.io/pypi/pyversions/python-getpaid-payu)](https://pypi.org/project/python-getpaid-payu/)
-[![License](https://img.shields.io/pypi/l/python-getpaid-payu)](https://github.com/django-getpaid/python-getpaid-payu/blob/main/LICENSE)
+[![PyPI version](https://img.shields.io/pypi/v/python-getpaid-payu.svg)](https://pypi.org/project/python-getpaid-payu/)
+[![Python versions](https://img.shields.io/pypi/pyversions/python-getpaid-payu.svg)](https://pypi.org/project/python-getpaid-payu/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-PayU payment gateway plugin for the
-[python-getpaid](https://github.com/django-getpaid) ecosystem. Provides a
-fully async HTTP client (`PayUClient`) and a payment processor
-(`PayUProcessor`) implementing the
-[getpaid-core](https://github.com/django-getpaid/python-getpaid-core)
-`BaseProcessor` interface. Communicates with PayU via their REST API v2.1
-using OAuth2 authentication.
+PayU payment processor plugin for the [python-getpaid](https://github.com/django-getpaid/python-getpaid-core) ecosystem.
 
-## Architecture
+Provides a fully async HTTP client (`PayUClient`) and a payment processor (`PayUProcessor`) implementing the [getpaid-core](https://github.com/django-getpaid/python-getpaid-core) `BaseProcessor` interface. Communicates with PayU via their REST API v2.1 using OAuth2 authentication.
 
-getpaid-payu is composed of two main layers:
+## Features
 
-- **PayUClient** — a low-level async HTTP client (built on `httpx`) that wraps
-  every PayU REST API v2.1 endpoint. OAuth2 tokens are obtained lazily and
-  refreshed automatically. Can be used as an async context manager for
-  connection reuse.
-- **PayUProcessor** — a high-level processor that implements `BaseProcessor`
-  from getpaid-core. Translates between the core payment protocol and PayU's
-  API, handles signature verification, PUSH/PULL callbacks, and FSM
-  transitions.
+- **Full Payment Lifecycle**: Supports prepared, locked, paid, failed, and refunded states.
+- **Pre-authorization**: Reserve funds on customer's card (lock) and capture them later (charge).
+- **Refunds**: Full and partial refund support via API.
+- **Multiple Currencies**: Support for 15 currencies across Europe and beyond.
+- **Asynchronous**: Built with `httpx` for non-blocking API communication.
+- **Security**: Robust callback signature verification (SHA-256 and MD5).
+- **Comprehensive API**: Wraps every PayU REST API v2.1 endpoint.
 
-## Key Features
+## Supported Currencies
 
-- Full PayU REST API v2.1 coverage
-- Async HTTP client with automatic OAuth2 token management
-- Create order, cancel, capture (charge), retrieve order info
-- Refund operations: create, retrieve single, retrieve all
-- Payment methods retrieval
-- Transaction details retrieval
-- Shop info and payout operations
-- Token deletion (card-on-file)
-- Automatic amount centification (amounts × 100) and normalization
-- Signature verification (MD5 and SHA-256)
-- PUSH callback handling with FSM integration
-- PULL status polling
-- Full pre-authorization support (lock, charge, release)
+The following 15 currencies are supported:
+BGN, CHF, CZK, DKK, EUR, GBP, HRK, HUF, NOK, PLN, RON, RUB, SEK, UAH, USD.
 
-## Quick Usage
+## Installation
 
-`PayUClient` can be used standalone as an async context manager:
-
-```python
-from decimal import Decimal
-from getpaid_payu.client import PayUClient
-from getpaid_payu.types import Currency
-
-async with PayUClient(
-    api_url="https://secure.snd.payu.com/",
-    pos_id=300746,
-    second_key="b6ca15b0d1020e8094f2b...",
-    oauth_id=300746,
-    oauth_secret="2ee86a66e5d97e3fadc4...",
-) as client:
-    response = await client.new_order(
-        amount=Decimal("29.99"),
-        currency=Currency.PLN,
-        order_id="order-123",
-        description="Test order",
-    )
-    redirect_url = response["redirectUri"]
+```bash
+pip install python-getpaid-payu
 ```
 
 ## Configuration
 
-When used via a framework adapter (e.g. django-getpaid), configuration is
-provided as a dictionary:
+To use the PayU backend, register it in your `getpaid` configuration and provide the following settings:
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
@@ -81,47 +43,43 @@ provided as a dictionary:
 | `notify_url` | `str` | `None` | Notification callback URL template, e.g. `https://example.com/payments/{payment_id}/notify` |
 | `continue_url` | `str` | `None` | Redirect URL template after payment, e.g. `https://example.com/payments/{payment_id}/continue` |
 
-Example configuration dict:
+Example configuration:
 
 ```python
 GETPAID_BACKENDS = {
     "payu": {
-        "pos_id": 300746,
-        "second_key": "b6ca15b0d1020e8094f2b...",
-        "oauth_id": 300746,
-        "oauth_secret": "2ee86a66e5d97e3fadc4...",
+        "pos_id": "300746",
+        "second_key": "b6ca15b0d1020e8094d9b5f8d163db54",
+        "oauth_id": "300746",
+        "oauth_secret": "2ee86a66e5d97e3fadc400c9f19b065d",
+        "notify_url": "https://your-domain.com/payments/payu/callback/",
+        "continue_url": "https://your-domain.com/payments/payu/success/",
         "sandbox": True,
-        "notify_url": "https://example.com/payments/{payment_id}/notify",
-        "continue_url": "https://example.com/payments/{payment_id}/continue",
     }
 }
 ```
 
-## Supported Currencies
+### Sandbox Mode
 
-BGN, CHF, CZK, DKK, EUR, GBP, HRK, HUF, NOK, PLN, RON, RUB, SEK, UAH, USD
+PayU provides a sandbox environment for testing. You can use the example keys provided above for testing in PLN.
+
+## Ecosystem
+
+`python-getpaid-payu` is part of the larger `python-getpaid` ecosystem. Use it with one of our web framework wrappers:
+
+- [django-getpaid](https://github.com/django-getpaid/django-getpaid)
+- [litestar-getpaid](https://github.com/django-getpaid/litestar-getpaid)
+- [fastapi-getpaid](https://github.com/django-getpaid/fastapi-getpaid)
 
 ## Requirements
 
 - Python 3.12+
-- `python-getpaid-core >= 0.1.0`
+- `python-getpaid-core >= 3.0.0a2`
 - `httpx >= 0.27.0`
-
-## Related Projects
-
-- [getpaid-core](https://github.com/django-getpaid/python-getpaid-core) —
-  framework-agnostic payment processing library
-- [django-getpaid](https://github.com/django-getpaid/django-getpaid) —
-  Django framework adapter
 
 ## License
 
 MIT
-
-## Disclaimer
-
-This project has nothing in common with the
-[getpaid](http://code.google.com/p/getpaid/) plone project.
 
 ## Credits
 
