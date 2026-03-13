@@ -7,7 +7,6 @@ from copy import deepcopy
 from decimal import Decimal
 from functools import wraps
 from typing import ClassVar
-from urllib.parse import urljoin
 
 import httpx
 from getpaid_core.exceptions import ChargeFailure
@@ -133,7 +132,7 @@ class PayUClient:
 
     async def _authorize(self) -> None:
         """Obtain OAuth2 access token from PayU."""
-        url = urljoin(self.api_url, "/pl/standard/user/oauth/authorize")
+        url = f"{self.api_url.rstrip('/')}/pl/standard/user/oauth/authorize"
         # Auth uses form data, not JSON — use a dedicated client call
         if self._client is not None:
             self.last_response = await self._client.post(
@@ -285,7 +284,7 @@ class PayUClient:
             for forward compatibility.
         :return: Normalized JSON response from API.
         """
-        url = urljoin(self.api_url, "/api/v2_1/orders")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/orders"
         data = self._centify(
             {
                 "extOrderId": order_id,
@@ -368,7 +367,7 @@ class PayUClient:
         :param refund_type: Refund type ("REFUND_PAYMENT_STANDARD" or "FAST").
         :return: Normalized JSON response from API.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/refunds")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/orders/{order_id}/refunds"
         refund_data: dict = {
             "description": description if description else "Refund",
         }
@@ -406,7 +405,7 @@ class PayUClient:
         :param order_id: PayU order identifier.
         :return: Normalized JSON response from API.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/orders/{order_id}"
         self.last_response = await self._request(
             "DELETE",
             url,
@@ -429,7 +428,7 @@ class PayUClient:
         :param order_id: PayU order identifier.
         :return: Normalized JSON response from API.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/captures")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/orders/{order_id}/captures"
         self.last_response = await self._request(
             "POST",
             url,
@@ -449,7 +448,7 @@ class PayUClient:
         :param order_id: PayU order identifier.
         :return: Normalized JSON response from API.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/orders/{order_id}"
         self.last_response = await self._request(
             "GET",
             url,
@@ -468,7 +467,7 @@ class PayUClient:
         :param shop_id: Public shop identifier.
         :return: Normalized JSON response from API.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/shops/{shop_id}")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/shops/{shop_id}"
         self.last_response = await self._request(
             "GET",
             url,
@@ -490,7 +489,7 @@ class PayUClient:
         :param lang: ISO 639-1 language code for method names.
         :return: Payment methods response.
         """
-        url = urljoin(self.api_url, "/api/v2_1/paymethods")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/paymethods"
         if lang:
             url = f"{url}?lang={lang}"
         self.last_response = await self._request(
@@ -512,7 +511,8 @@ class PayUClient:
         :param order_id: PayU order identifier.
         :return: Transaction response.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/transactions")
+        base = self.api_url.rstrip("/")
+        url = f"{base}/api/v2_1/orders/{order_id}/transactions"
         self.last_response = await self._request(
             "GET",
             url,
@@ -532,7 +532,7 @@ class PayUClient:
         :param order_id: PayU order identifier.
         :return: List of refund records.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/orders/{order_id}/refunds")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/orders/{order_id}/refunds"
         self.last_response = await self._request(
             "GET",
             url,
@@ -555,10 +555,8 @@ class PayUClient:
         :param refund_id: PayU refund identifier.
         :return: Refund detail record.
         """
-        url = urljoin(
-            self.api_url,
-            f"/api/v2_1/orders/{order_id}/refunds/{refund_id}",
-        )
+        base = self.api_url.rstrip("/")
+        url = f"{base}/api/v2_1/orders/{order_id}/refunds/{refund_id}"
         self.last_response = await self._request(
             "GET",
             url,
@@ -588,7 +586,7 @@ class PayUClient:
         :param ext_payout_id: External payout identifier.
         :return: Payout response.
         """
-        url = urljoin(self.api_url, "/api/v2_1/payouts")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/payouts"
         payout_data: dict = {"shopId": shop_id}
         payout_obj: dict = {}
         if amount is not None:
@@ -620,7 +618,7 @@ class PayUClient:
         :param payout_id: PayU payout identifier.
         :return: Payout response.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/payouts/{payout_id}")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/payouts/{payout_id}"
         self.last_response = await self._request(
             "GET",
             url,
@@ -639,7 +637,7 @@ class PayUClient:
 
         :param token: The token value to delete.
         """
-        url = urljoin(self.api_url, f"/api/v2_1/tokens/{token}")
+        url = f"{self.api_url.rstrip('/')}/api/v2_1/tokens/{token}"
         self.last_response = await self._request(
             "DELETE",
             url,

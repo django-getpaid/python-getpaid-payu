@@ -1,0 +1,200 @@
+================================================================================
+TASK 5 BASELINE: python-getpaid-payu
+Executed: 2026-02-18
+================================================================================
+
+DIRECTORY: /home/minder/projekty/python-getpaid/getpaid-payu/
+
+================================================================================
+1. PYTEST RESULTS
+================================================================================
+
+Command: uv run pytest
+
+Output:
+============================= test session starts ==============================
+platform linux -- Python 3.12.10, pytest-9.0.2, pluggy-1.6.0
+rootdir: /home/minder/projekty/python-getpaid/getpaid-payu
+configfile: pyproject.toml
+testpaths: tests
+plugins: asyncio-1.3.0, cov-7.0.0, anyio-4.12.1, respx-0.22.0
+asyncio: mode=Mode.AUTO, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_fixture_scope=function
+collected 115 items
+
+tests/test_callback.py ...................               [ 16%]
+tests/test_client.py ................................................... [ 60%]
+.........                                                                [ 68%]
+tests/test_processor.py .........................        [ 90%]
+tests/test_types.py ...........                          [100%]
+
+============================= 115 passed in 2.57s ==============================
+
+STATUS: ✓ ALL TESTS PASSED
+
+================================================================================
+2. BUILD RESULTS
+================================================================================
+
+Command: uv build
+
+Output:
+Building source distribution...
+Building wheel from source distribution...
+Successfully built dist/python_getpaid_payu-0.1.1.tar.gz
+Successfully built dist/python_getpaid_payu-0.1.1-py3-none-any.whl
+
+STATUS: ✓ BUILD SUCCESSFUL
+
+Artifacts:
+  - dist/python_getpaid_payu-0.1.1.tar.gz (source distribution)
+  - dist/python_getpaid_payu-0.1.1-py3-none-any.whl (wheel)
+
+================================================================================
+3. PACKAGE METADATA INVENTORY
+================================================================================
+
+Project Name:           python-getpaid-payu
+Version:                0.1.1
+Python Requirement:     >= 3.12
+License:                MIT (text format)
+Authors:                Dominik Kozaczko <dominik@kozaczko.info>
+
+Description:            PayU payment gateway integration for python-getpaid ecosystem.
+
+Dependencies:
+  - python-getpaid-core >= 0.1.0
+  - httpx >= 0.27.0
+
+Development Dependencies:
+  - pytest >= 8.0
+  - pytest-asyncio >= 0.24.0
+  - pytest-cov >= 5.0
+  - respx >= 0.22.0
+  - ruff >= 0.9.0
+  - pre-commit >= 4.0
+  - ty >= 0.0.16
+
+Documentation Dependencies:
+  - furo >= 2024.8.6
+  - sphinx >= 8.0
+  - myst-parser >= 4.0
+
+URLs:
+  - Homepage: https://github.com/django-getpaid/python-getpaid-payu
+  - Repository: https://github.com/django-getpaid/python-getpaid-payu
+  - Documentation: https://getpaid-payu.readthedocs.io/
+  - Changelog: https://github.com/django-getpaid/python-getpaid-payu/releases
+
+Build System:           hatchling
+
+Classifiers:
+  - Development Status :: 3 - Alpha
+  - Intended Audience :: Developers
+  - License :: OSI Approved :: MIT License
+  - Programming Language :: Python :: 3.12
+  - Programming Language :: Python :: 3.13
+  - Topic :: Office/Business :: Financial
+  - Topic :: Office/Business :: Financial :: Point-Of-Sale
+  - Typing :: Typed
+
+================================================================================
+4. LICENSE CHECK
+================================================================================
+
+LICENSE File Status:    ✓ PRESENT
+Format:                 MIT License
+Copyright:              2022-2026 Dominik Kozaczko
+Consistency:            ✓ Matches pyproject.toml declaration (MIT)
+
+================================================================================
+5. README.MD CHECK
+================================================================================
+
+README File Status:     ✓ PRESENT
+Size:                   ~4.5 KB (129 lines)
+Content Verification:
+  ✓ Project description (PayU payment gateway plugin)
+  ✓ Architecture section (PayUClient + PayUProcessor)
+  ✓ Key features listed
+  ✓ Quick usage examples (async context manager)
+  ✓ Configuration table with all parameters
+  ✓ Supported currencies listed
+  ✓ Requirements section
+  ✓ Related projects links
+  ✓ License information
+  ✓ Disclaimer section
+  ✓ Credits
+
+================================================================================
+6. GITHUB WORKFLOWS (.github/workflows/)
+================================================================================
+
+Status:                 ✗ NOT PRESENT
+
+No .github/workflows/ directory found in the repository.
+Note: Project is part of the python-getpaid umbrella but does not have its own CI configuration.
+
+================================================================================
+7. ENTRY-POINTS ANALYSIS [CRITICAL]
+================================================================================
+
+Section Name:           [project.entry-points."getpaid.backends"]
+Status:                 ✗ ENTRY-POINTS NOT DEFINED
+
+Current State:
+  - pyproject.toml does NOT contain any [project.entry-points] section
+  - grep search: "No entry-points found in pyproject.toml"
+
+Impact Analysis:
+  The PayUProcessor is the main integration point with getpaid-core.
+  Entry-points are REQUIRED for plugin auto-discovery by framework adapters
+  (e.g., django-getpaid).
+
+Expected Entry-Point (if needed):
+  [project.entry-points."getpaid.backends"]
+  payu = "getpaid_payu.processor:PayUProcessor"
+
+  OR (if supporting multiple backends):
+  [project.entry-points."getpaid.backends"]
+  payu = "getpaid_payu.processor:PayUProcessor"
+
+Recommendation:
+  TASK 10 (Add entry-points configuration) IS REQUIRED
+  Current state prevents framework adapters from auto-discovering PayUProcessor.
+
+================================================================================
+8. PYPROJECT.TOML STRUCTURE
+================================================================================
+
+Build Section:          ✓ Present (hatchling)
+Test Configuration:     ✓ Present (pytest)
+Coverage Config:        ✓ Present
+Linter Config (ruff):   ✓ Present
+Type Checker (ty):      ✓ Present
+Project Metadata:       ✓ Complete
+
+Entry-Points Section:   ✗ MISSING (BLOCKING FOR TASK 10)
+
+================================================================================
+SUMMARY
+================================================================================
+
+✓ Pytest: 115 passed (2.57s)
+✓ Build: Successful (tarball + wheel)
+✓ License: MIT, properly formatted
+✓ README: Comprehensive documentation
+✓ Version: 0.1.1 (consistent across build artifacts)
+✓ Metadata: Complete and correct
+
+✗ Entry-Points: NOT DEFINED
+  → PayUProcessor cannot be auto-discovered by framework adapters
+  → Task 10 required to add: [project.entry-points."getpaid.backends"]
+
+BLOCKERS: Entry-points missing (expected, noted in Metis feedback)
+
+NEXT STEPS:
+  - Task 10: Add entry-points configuration
+  - Ensure PayUProcessor class is properly exported for discovery
+
+================================================================================
+EOF

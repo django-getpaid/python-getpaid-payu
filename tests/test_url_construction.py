@@ -175,7 +175,7 @@ class TestURLConstruction:
                 },
                 "orderId": "ORDER123",
             },
-            status_code=201,
+            status_code=200,
         )
 
         client = PayUClient(
@@ -185,7 +185,7 @@ class TestURLConstruction:
             oauth_id=300746,
             oauth_secret="2ee86a66e5d97e3fadc400c9f19b065d",
         )
-        await client.capture("ORDER123", Decimal("100.00"))
+        await client.capture("ORDER123")
 
         # Verify the POST request was made to the correct URL
         assert respx_mock.calls.last.request.url == capture_url
@@ -206,7 +206,7 @@ class TestURLConstruction:
                 },
                 "orderId": "ORDER123",
             },
-            status_code=201,
+            status_code=200,
         )
 
         client = PayUClient(
@@ -363,7 +363,7 @@ class TestURLConstruction:
                 },
                 "payoutId": "PAYOUT123",
             },
-            status_code=201,
+            status_code=200,
         )
 
         client = PayUClient(
