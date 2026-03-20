@@ -1,97 +1,62 @@
 """Shared test fixtures for python-getpaid-payu."""
 
+from dataclasses import dataclass
 from decimal import Decimal
-from unittest.mock import MagicMock
+from typing import Any
 
 import pytest
 from getpaid_core.enums import PaymentStatus
-from getpaid_core.fsm import create_payment_machine
+from getpaid_core.types import BuyerInfo
+from getpaid_core.types import ItemInfo
 
 
-def make_mock_payment(
-    *,
-    payment_id: str = "test-payment-123",
-    external_id: str = "",
-    amount: Decimal = Decimal("100.00"),
-    currency: str = "PLN",
-    status: str = PaymentStatus.NEW,
-) -> MagicMock:
-    """Create a mock payment satisfying the Payment protocol."""
-    order = MagicMock()
-    order.get_total_amount.return_value = amount
-    order.get_buyer_info.return_value = {
-        "email": "john@example.com",
-        "first_name": "John",
-        "last_name": "Doe",
-    }
-    order.get_description.return_value = "Test order"
-    order.get_currency.return_value = currency
-    order.get_items.return_value = [
-        {"name": "Product 1", "quantity": 1, "unit_price": amount}
-    ]
-    order.get_return_url.return_value = "https://shop.example.com/success"
+@dataclass
+class FakeOrder:
+    amount: Decimal
+    currency: str
 
-    payment = MagicMock()
-    payment.id = payment_id
-    payment.order = order
-    payment.amount_required = amount
-    payment.currency = currency
-    payment.status = status
-    payment.backend = "payu"
-    payment.external_id = external_id
-    payment.description = "Test order"
-    payment.amount_paid = Decimal("0")
-    payment.amount_locked = Decimal("0")
-    payment.amount_refunded = Decimal("0")
-    payment.fraud_status = "unknown"
-    payment.fraud_message = ""
+    def get_total_amount(self) -> Decimal:
+        return self.amount
 
-    # These are needed by FSM guards
-    payment.is_fully_paid.return_value = True
-    payment.is_fully_refunded.return_value = False
+    def get_buyer_info(self) -> BuyerInfo:
+        return BuyerInfo(
+            email="john@example.com",
+            first_name="John",
+            last_name="Doe",
+        )
 
-    return payment
+    def get_description(self) -> str:
+        return "Test order"
+
+    def get_currency(self) -> str:
+        return self.currency
+
+    def get_items(self) -> list[ItemInfo]:
+        return [
+            ItemInfo(
+                name="Product 1",
+                quantity=1,
+                unit_price=self.amount,
+            )
+        ]
+
+    def get_return_url(self, success: bool | None = None) -> str:
+        return "https://shop.example.com/success"
 
 
 class FakePayment:
-    """A real object for FSM tests.
-
-    MagicMock cannot be used with ``transitions`` because it
-    responds to ``hasattr`` for every attribute, causing the
-    library to skip binding trigger methods.
-    """
-
     def __init__(
         self,
         *,
         payment_id: str = "test-payment-123",
-        external_id: str = "",
+        external_id: str | None = None,
         amount: Decimal = Decimal("100.00"),
         currency: str = "PLN",
         status: str = PaymentStatus.NEW,
-        is_fully_paid: bool = True,
-        is_fully_refunded: bool = False,
+        provider_data: dict[str, Any] | None = None,
     ) -> None:
         self.id = payment_id
-        self.order = MagicMock()
-        self.order.get_total_amount.return_value = amount
-        self.order.get_buyer_info.return_value = {
-            "email": "john@example.com",
-            "first_name": "John",
-            "last_name": "Doe",
-        }
-        self.order.get_description.return_value = "Test order"
-        self.order.get_currency.return_value = currency
-        self.order.get_items.return_value = [
-            {
-                "name": "Product 1",
-                "quantity": 1,
-                "unit_price": amount,
-            }
-        ]
-        self.order.get_return_url.return_value = (
-            "https://shop.example.com/success"
-        )
+        self.order = FakeOrder(amount=amount, currency=currency)
         self.amount_required = amount
         self.currency = currency
         self.status = status
@@ -103,28 +68,37 @@ class FakePayment:
         self.amount_refunded = Decimal("0")
         self.fraud_status = "unknown"
         self.fraud_message = ""
-        self._is_fully_paid = is_fully_paid
-        self._is_fully_refunded = is_fully_refunded
+        self.provider_data = dict(provider_data or {})
 
     def is_fully_paid(self) -> bool:
-        return self._is_fully_paid
+        return self.amount_paid >= self.amount_required
 
     def is_fully_refunded(self) -> bool:
-        return self._is_fully_refunded
+        return self.amount_refunded >= self.amount_paid
+
+
+def make_mock_payment(
+    *,
+    payment_id: str = "test-payment-123",
+    external_id: str | None = None,
+    amount: Decimal = Decimal("100.00"),
+    currency: str = "PLN",
+    status: str = PaymentStatus.NEW,
+    provider_data: dict[str, Any] | None = None,
+) -> FakePayment:
+    return FakePayment(
+        payment_id=payment_id,
+        external_id=external_id,
+        amount=amount,
+        currency=currency,
+        status=status,
+        provider_data=provider_data,
+    )
 
 
 @pytest.fixture
-def mock_payment():
-    """Fresh mock payment in NEW status."""
+def mock_payment() -> FakePayment:
     return make_mock_payment()
-
-
-@pytest.fixture
-def mock_payment_with_fsm():
-    """Mock payment with FSM attached (has trigger methods)."""
-    payment = FakePayment()
-    create_payment_machine(payment)
-    return payment
 
 
 PAYU_CONFIG = {
@@ -139,5 +113,5 @@ PAYU_CONFIG = {
 
 
 @pytest.fixture
-def payu_config():
+def payu_config() -> dict[str, Any]:
     return PAYU_CONFIG.copy()

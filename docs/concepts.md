@@ -17,9 +17,9 @@ The standard payment flow with PayU:
                          └── PayUProcessor.verify_callback()
                               └── Signature verification
                          └── PayUProcessor.handle_callback()
-                              └── FSM transitions:
-                                  COMPLETED → confirm_payment → mark_as_paid
-                                  CANCELED  → fail
+                              └── semantic updates:
+                                  COMPLETED → payment_captured
+                                  CANCELED  → failed
 ```
 
 ### Step by Step
@@ -33,11 +33,11 @@ The standard payment flow with PayU:
 
 3. **Notification** — PayU sends a PUSH notification (HTTP POST) to the
    `notify_url` with the order status. The framework adapter passes this to
-   `verify_callback()` (signature check) and then `handle_callback()` (FSM
-   state transitions).
+   `verify_callback()` (signature check) and then `handle_callback()` (semantic
+   update generation).
 
-4. **Status update** — The payment status is updated via FSM transitions
-   based on the PayU order status.
+4. **Status update** — The payment status is updated by applying semantic
+   payment events based on the PayU order status.
 
 ## Pre-authorization Flow
 
@@ -49,7 +49,7 @@ locked on the buyer's account first, then charged or released later:
                          └── PayU returns WAITING_FOR_CONFIRMATION status
 
 2. PayU callback         handle_callback()
-                         └── WAITING_FOR_CONFIRMATION → confirm_lock
+                         └── WAITING_FOR_CONFIRMATION → locked
 
 3a. Capture (charge)     PayUProcessor.charge()
                          └── PayUClient.capture()
@@ -73,9 +73,9 @@ Refunds can be full or partial:
 
 3. PayU callback         handle_callback()
                          └── refund.status == FINALIZED
-                              → confirm_refund → mark_as_refunded
+                              → refund_confirmed
                          └── refund.status == CANCELED
-                              → cancel_refund → mark_as_paid
+                              → refund_cancelled
 ```
 
 ## OAuth2 Authentication

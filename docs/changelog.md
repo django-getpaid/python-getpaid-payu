@@ -17,6 +17,6 @@ Initial release.
 - Token deletion
 - Automatic amount centification/normalization
 - Signature verification (MD5 and SHA-256)
-- PUSH callback handling with FSM integration
+- PUSH callback handling with semantic payment updates
 - PULL status polling
 - Full pre-authorization support (lock, charge, release)

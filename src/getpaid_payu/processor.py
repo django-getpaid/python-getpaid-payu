@@ -1,19 +1,20 @@
 """PayU payment processor."""
 
-import contextlib
 import hashlib
 import hmac
 import logging
+from collections.abc import Sequence
 from decimal import Decimal
 from typing import Any
 from typing import ClassVar
 
+from getpaid_core.enums import PaymentEvent
 from getpaid_core.exceptions import InvalidCallbackError
 from getpaid_core.processor import BaseProcessor
 from getpaid_core.types import ChargeResponse as CoreChargeResponse
-from getpaid_core.types import PaymentStatusResponse
+from getpaid_core.types import PaymentUpdate
+from getpaid_core.types import RefundResult
 from getpaid_core.types import TransactionResult
-from transitions.core import MachineError
 
 from .client import PayUClient
 from .types import Currency
@@ -36,7 +37,7 @@ class PayUProcessor(BaseProcessor):
 
     slug: ClassVar[str] = "payu"
     display_name: ClassVar[str] = "PayU"
-    accepted_currencies: ClassVar[list[str]] = [c.value for c in Currency]
+    accepted_currencies: ClassVar[Sequence[str]] = [c.value for c in Currency]
     sandbox_url: ClassVar[str] = "https://secure.snd.payu.com/"
     production_url: ClassVar[str] = "https://secure.payu.com/"
 
@@ -44,10 +45,10 @@ class PayUProcessor(BaseProcessor):
         """Create a PayUClient from processor config."""
         return PayUClient(
             api_url=self.get_paywall_baseurl(),
-            pos_id=self.get_setting("pos_id"),
-            second_key=self.get_setting("second_key"),
-            oauth_id=self.get_setting("oauth_id"),
-            oauth_secret=self.get_setting("oauth_secret"),
+            pos_id=int(self.get_setting("pos_id", 0)),
+            second_key=str(self.get_setting("second_key", "")),
+            oauth_id=int(self.get_setting("oauth_id", 0)),
+            oauth_secret=str(self.get_setting("oauth_secret", "")),
         )
 
     def _resolve_url(self, url_template: str) -> str:
@@ -113,12 +114,11 @@ class PayUProcessor(BaseProcessor):
         client = self._get_client()
         context = self._build_paywall_context(**kwargs)
         response = await client.new_order(**context)
-        self.payment.external_id = response.get("orderId", "")
         return TransactionResult(
-            redirect_url=response.get("redirectUri"),
-            form_data=None,
             method="GET",
-            headers={},
+            redirect_url=response.get("redirectUri"),
+            external_id=response.get("orderId") or None,
+            provider_data={"payu_status": response.get("status", {})},
         )
 
     async def verify_callback(
@@ -141,7 +141,7 @@ class PayUProcessor(BaseProcessor):
                 "Missing raw_body in callback data. "
                 "The framework adapter must pass the raw HTTP body string."
             )
-        if isinstance(raw_body, (bytes, bytearray)):
+        if isinstance(raw_body, bytes | bytearray):
             raw_body = raw_body.decode("utf-8")
         if not isinstance(raw_body, str):
             raise InvalidCallbackError("raw_body must be a str or bytes value.")
@@ -197,75 +197,97 @@ class PayUProcessor(BaseProcessor):
 
     async def handle_callback(
         self, data: dict, headers: dict, **kwargs
-    ) -> None:
-        """Handle PayU PUSH callback (order or refund).
-
-        Uses payment.may_trigger() to check if transitions are
-        valid before firing them. FSM must be attached to
-        self.payment before this method is called.
-        """
+    ) -> PaymentUpdate | None:
+        """Handle PayU PUSH callback and return a semantic update."""
         if "order" in data:
             order_data = data["order"]
             status = order_data.get("status")
+            amount = Decimal(str(order_data.get("totalAmount", 0))) / 100
+            external_id = order_data.get("orderId") or self.payment.external_id
+            provider_event_id = f"order:{external_id}:{status}"
             if status == OrderStatus.COMPLETED:
-                if self.payment.may_trigger("confirm_payment"):  # type: ignore[union-attr]
-                    self.payment.confirm_payment()  # type: ignore[union-attr]
-                    with contextlib.suppress(MachineError):
-                        self.payment.mark_as_paid()  # type: ignore[union-attr]
-                else:
-                    logger.debug(
-                        "Cannot confirm payment",
-                        extra={
-                            "payment_id": self.payment.id,
-                            "payment_status": self.payment.status,
-                        },
-                    )
+                return PaymentUpdate(
+                    payment_event=PaymentEvent.PAYMENT_CAPTURED,
+                    paid_amount=amount or self.payment.amount_required,
+                    external_id=external_id,
+                    provider_event_id=provider_event_id,
+                    provider_data={"payu_status": status},
+                )
             elif status == OrderStatus.CANCELED:
-                self.payment.fail()  # type: ignore[union-attr]
+                return PaymentUpdate(
+                    payment_event=PaymentEvent.FAILED,
+                    external_id=external_id,
+                    provider_event_id=provider_event_id,
+                    provider_data={"payu_status": status},
+                )
             elif status == OrderStatus.WAITING_FOR_CONFIRMATION:
-                if self.payment.may_trigger("confirm_lock"):  # type: ignore[union-attr]
-                    self.payment.confirm_lock()  # type: ignore[union-attr]
-                else:
-                    logger.debug(
-                        "Already locked",
-                        extra={
-                            "payment_id": self.payment.id,
-                            "payment_status": self.payment.status,
-                        },
-                    )
+                return PaymentUpdate(
+                    payment_event=PaymentEvent.LOCKED,
+                    locked_amount=amount or self.payment.amount_required,
+                    external_id=external_id,
+                    provider_event_id=provider_event_id,
+                    provider_data={"payu_status": status},
+                )
 
         elif "refund" in data:
             refund_data = data["refund"]
             status = refund_data.get("status")
+            refund_id = refund_data.get("refundId", "")
+            provider_event_id = f"refund:{refund_id}:{status}"
             if status == RefundStatus.FINALIZED:
                 amount = Decimal(str(refund_data.get("amount", 0))) / 100
-                self.payment.confirm_refund(amount=amount)  # type: ignore[union-attr]
-                if self.payment.is_fully_refunded():
-                    self.payment.mark_as_refunded()  # type: ignore[union-attr]
+                return PaymentUpdate(
+                    payment_event=PaymentEvent.REFUND_CONFIRMED,
+                    refunded_amount=amount,
+                    provider_event_id=provider_event_id,
+                    provider_data={"refund_status": status},
+                )
             elif status == RefundStatus.CANCELED:
-                self.payment.cancel_refund()  # type: ignore[union-attr]
-                if self.payment.is_fully_paid():
-                    self.payment.mark_as_paid()  # type: ignore[union-attr]
+                return PaymentUpdate(
+                    payment_event=PaymentEvent.REFUND_CANCELLED,
+                    provider_event_id=provider_event_id,
+                    provider_data={"refund_status": status},
+                )
+        return None
 
-    async def fetch_payment_status(self, **kwargs) -> PaymentStatusResponse:
+    async def fetch_payment_status(self, **kwargs) -> PaymentUpdate | None:
         """PULL flow: fetch payment status from PayU API."""
         client = self._get_client()
         response = await client.get_order_info(self.payment.external_id)
         orders = response.get("orders") or []
         order_data = orders[0] if orders else None
         status = order_data.get("status") if order_data else None
+        if order_data is None:
+            return None
 
-        status_map = {
-            OrderStatus.NEW: "confirm_prepared",
-            OrderStatus.PENDING: "confirm_prepared",
-            OrderStatus.CANCELED: "fail",
-            OrderStatus.COMPLETED: "confirm_payment",
-            OrderStatus.WAITING_FOR_CONFIRMATION: "confirm_lock",
-        }
+        external_id = order_data.get("orderId") or self.payment.external_id
+        amount = Decimal(str(order_data.get("totalAmount", 0))) / 100
+        provider_event_id = f"poll:{external_id}:{status}"
 
-        return PaymentStatusResponse(
-            status=status_map.get(status),
-        )
+        if status == OrderStatus.COMPLETED:
+            return PaymentUpdate(
+                payment_event=PaymentEvent.PAYMENT_CAPTURED,
+                paid_amount=amount or self.payment.amount_required,
+                external_id=external_id,
+                provider_event_id=provider_event_id,
+                provider_data={"payu_status": status},
+            )
+        if status == OrderStatus.CANCELED:
+            return PaymentUpdate(
+                payment_event=PaymentEvent.FAILED,
+                external_id=external_id,
+                provider_event_id=provider_event_id,
+                provider_data={"payu_status": status},
+            )
+        if status == OrderStatus.WAITING_FOR_CONFIRMATION:
+            return PaymentUpdate(
+                payment_event=PaymentEvent.LOCKED,
+                locked_amount=amount or self.payment.amount_required,
+                external_id=external_id,
+                provider_event_id=provider_event_id,
+                provider_data={"payu_status": status},
+            )
+        return None
 
     async def charge(
         self, amount: Decimal | None = None, **kwargs
@@ -294,13 +316,21 @@ class PayUProcessor(BaseProcessor):
 
     async def start_refund(
         self, amount: Decimal | None = None, **kwargs
-    ) -> Decimal:
+    ) -> RefundResult:
         """Start a refund via PayU API."""
         client = self._get_client()
         description = kwargs.get("description")
-        await client.refund(
+        response = await client.refund(
             order_id=self.payment.external_id,
             amount=amount,
             description=description,
         )
-        return amount or self.payment.amount_paid
+        refund = response.get("refund", {})
+        provider_data = {}
+        refund_id = refund.get("refundId")
+        if refund_id:
+            provider_data["refund_id"] = refund_id
+        return RefundResult(
+            amount=amount or self.payment.amount_paid,
+            provider_data=provider_data,
+        )
