@@ -29,6 +29,39 @@ BGN, CHF, CZK, DKK, EUR, GBP, HRK, HUF, NOK, PLN, RON, RUB, SEK, UAH, USD.
 pip install python-getpaid-payu
 ```
 
+Install simulator support only when you want this package to register its local
+simulator plugin with `python-getpaid-simulator`:
+
+```bash
+pip install python-getpaid-payu[simulator]
+```
+
+This extra installs the simulator host and Litestar dependencies, then exposes
+the `payu` plugin through the `getpaid.simulator.providers` entry point.
+
+## Simulator Plugin
+
+When `python-getpaid-payu[simulator]` is installed alongside
+`python-getpaid-simulator`, the simulator host auto-discovers the PayU plugin.
+
+Typical local setup:
+
+```bash
+pip install python-getpaid-simulator python-getpaid-payu[simulator]
+getpaid-simulator
+```
+
+The plugin contributes:
+
+- PayU OAuth and order/refund simulator API routes
+- PayU authorization UI at `/sim/payu/authorize/{order_id}`
+- PayU-specific webhook signing and state transitions
+
+Useful simulator environment variables:
+
+- `SIMULATOR_PAYU_SECOND_KEY`
+- `SIMULATOR_PLUGIN_FAILURE_MODE` (`warn` or `strict`)
+
 ## Configuration
 
 To use the PayU backend, register it in your `getpaid` configuration and provide the following settings:
