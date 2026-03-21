@@ -829,33 +829,16 @@ wheels = [
 
 [[package]]
 name = "python-getpaid-core"
-source = { editable = "../getpaid-core" }
+version = "3.0.0a3"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
     { name = "httpx" },
     { name = "transitions" },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "anyio", specifier = ">=4.0" },
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "transitions", specifier = ">=0.9.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "furo", specifier = ">=2025.12.19" },
-    { name = "myst-parser", specifier = ">=4.0.1" },
-    { name = "pre-commit", specifier = ">=4.0" },
-    { name = "pre-commit-hooks", specifier = ">=6.0.0" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.24.0" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "respx", specifier = ">=0.22.0" },
-    { name = "ruff", specifier = ">=0.9.0" },
-    { name = "sphinx", specifier = ">=8.1.3" },
-    { name = "ty", specifier = ">=0.0.16" },
+sdist = { url = "https://files.pythonhosted.org/packages/d6/0a/e0fd72ed27879c7d6fe7282a4a160479c5dabcd1c1a20b89b213d370e42f/python_getpaid_core-3.0.0a3.tar.gz", hash = "sha256:dc98dcfe1bd581500b6ab96db28653b384cc2b24eb30b30824e7ac5b6703f2cb", size = 52540, upload-time = "2026-03-21T00:00:46.313Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ba/c6/cb0ef9e36d6fa91723eff288733d47deb5c338476944d007aaa7db855547/python_getpaid_core-3.0.0a3-py3-none-any.whl", hash = "sha256:d45b5e0b2b5cb867f9f4357ce7b8abd047759a4cc1ff5624b68ce1bfdcb56e96", size = 14748, upload-time = "2026-03-21T00:00:44.719Z" },
 ]
 
 [[package]]
@@ -892,8 +875,8 @@ docs = [
 requires-dist = [
     { name = "httpx", specifier = ">=0.27.0" },
     { name = "litestar", marker = "extra == 'simulator'", specifier = ">=2.0" },
-    { name = "python-getpaid-core", editable = "../getpaid-core" },
-    { name = "python-getpaid-simulator", marker = "extra == 'simulator'", editable = "../getpaid-simulator" },
+    { name = "python-getpaid-core", specifier = ">=3.0.0a3" },
+    { name = "python-getpaid-simulator", marker = "extra == 'simulator'", specifier = ">=3.0.0a3" },
 ]
 provides-extras = ["simulator"]
 
@@ -915,49 +898,17 @@ docs = [
 
 [[package]]
 name = "python-getpaid-simulator"
-source = { editable = "../getpaid-simulator" }
+version = "3.0.0a3"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "jinja2" },
     { name = "litestar" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-
-[package.metadata]
-requires-dist = [
-    { name = "httpx", specifier = ">=0.27.0" },
-    { name = "jinja2", specifier = ">=3.0" },
-    { name = "litestar", specifier = ">=2.0" },
-    { name = "uvicorn", extras = ["standard"], specifier = ">=0.30.0" },
-]
-
-[package.metadata.requires-dev]
-dev = [
-    { name = "litestar", extras = ["testing"] },
-    { name = "playwright", specifier = ">=1.40.0" },
-    { name = "pre-commit", specifier = ">=4.0" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.24.0" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "python-getpaid-paynow", editable = "../getpaid-paynow" },
-    { name = "python-getpaid-payu", editable = "." },
-    { name = "respx", specifier = ">=0.21.0" },
-    { name = "ruff", specifier = ">=0.9.0" },
-    { name = "ty", specifier = ">=0.0.16" },
-]
-e2e = [
-    { name = "litestar", extras = ["testing"] },
-    { name = "playwright", specifier = ">=1.40.0" },
-    { name = "pre-commit", specifier = ">=4.0" },
-    { name = "pytest", specifier = ">=8.0" },
-    { name = "pytest-asyncio", specifier = ">=0.24.0" },
-    { name = "pytest-cov", specifier = ">=5.0" },
-    { name = "python-getpaid-core", editable = "../getpaid-core" },
-    { name = "python-getpaid-paynow", editable = "../getpaid-paynow" },
-    { name = "python-getpaid-payu", editable = "." },
-    { name = "respx", specifier = ">=0.21.0" },
-    { name = "ruff", specifier = ">=0.9.0" },
-    { name = "ty", specifier = ">=0.0.16" },
+sdist = { url = "https://files.pythonhosted.org/packages/33/87/944555871f1147b0f4979e4bb58b493a5848c4768f04b9e41a017fddc6dc/python_getpaid_simulator-3.0.0a3.tar.gz", hash = "sha256:a7a6fb19bbb6773b9396c480024882b283526bf41319a509f5baa7616b5096d5", size = 32007, upload-time = "2026-03-21T09:16:05.282Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/39/6d/e6b3072867a91c6ddb364e3056e96418514b5fe15cde49a4c7e5e9688d5c/python_getpaid_simulator-3.0.0a3-py3-none-any.whl", hash = "sha256:327a819330f1a0203687121fb0dc0c0a372631c39693b67cf6c71c54bc389aa2", size = 18993, upload-time = "2026-03-21T09:16:06.728Z" },
 ]
 
 [[package]]

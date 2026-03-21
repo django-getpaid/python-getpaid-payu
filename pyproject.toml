@@ -67,10 +67,6 @@ packages = ['src/getpaid_payu']
 [tool.hatch.version]
 path = "src/getpaid_payu/__init__.py"
 
-[tool.uv.sources]
-python-getpaid-core = { path = "../getpaid-core", editable = true }
-python-getpaid-simulator = { path = "../getpaid-simulator", editable = true }
-
 [tool.pytest.ini_options]
 testpaths = ['tests']
 asyncio_mode = 'auto'
