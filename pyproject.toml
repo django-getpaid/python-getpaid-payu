@@ -23,6 +23,12 @@ dependencies = [
     'httpx>=0.27.0',
 ]
 
+[project.optional-dependencies]
+simulator = [
+    'python-getpaid-simulator>=3.0.0a3',
+    'litestar>=2.0',
+]
+
 [dependency-groups]
 dev = [
     'pytest>=8.0',
@@ -48,6 +54,9 @@ Changelog = 'https://github.com/django-getpaid/python-getpaid-payu/releases'
 [project.entry-points."getpaid.backends"]
 payu = 'getpaid_payu.processor:PayUProcessor'
 
+[project.entry-points."getpaid.simulator.providers"]
+payu = 'getpaid_payu.simulator:get_plugin'
+
 [build-system]
 requires = ['hatchling']
 build-backend = 'hatchling.build'
@@ -57,6 +66,10 @@ packages = ['src/getpaid_payu']
 
 [tool.hatch.version]
 path = "src/getpaid_payu/__init__.py"
+
+[tool.uv.sources]
+python-getpaid-core = { path = "../getpaid-core", editable = true }
+python-getpaid-simulator = { path = "../getpaid-simulator", editable = true }
 
 [tool.pytest.ini_options]
 testpaths = ['tests']
