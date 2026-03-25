@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from datetime import UTC
 from datetime import datetime
+from decimal import Decimal
+from decimal import InvalidOperation
 from inspect import isawaitable
 from typing import Any
 from urllib.parse import parse_qsl
@@ -29,6 +31,23 @@ URL_ENCODED_BODY = Body(media_type=RequestEncodingType.URL_ENCODED)
 
 def _provider_config(request: Request[Any, Any, Any]) -> dict[str, Any]:
     return dict(request.app.state.provider_configs["payu"])
+
+
+def _format_amount_for_display(
+    order: dict[str, Any],
+    provider_config: dict[str, Any],
+) -> str:
+    amount_raw = order.get("totalAmount", 0)
+    try:
+        amount_value = Decimal(str(amount_raw))
+    except (InvalidOperation, TypeError, ValueError):
+        return str(amount_raw)
+
+    minor_unit_places = int(provider_config.get("amount_minor_unit_places", 2))
+    if minor_unit_places >= 0:
+        amount_value /= Decimal(10) ** minor_unit_places
+
+    return f"{amount_value:.2f} {order.get('currencyCode', 'PLN')}"
 
 
 def _unauthorized_response() -> Response[dict[str, dict[str, str]]]:
@@ -329,14 +348,10 @@ async def payu_authorize_get(
     if order.get("status") in ("COMPLETED", "CANCELED"):
         raise HTTPException(status_code=400, detail="Payment already processed")
 
-    amount_raw = order.get("totalAmount", 0)
-    try:
-        amount_value = float(amount_raw) / 100
-        formatted_amount = (
-            f"{amount_value:.2f} {order.get('currencyCode', 'PLN')}"
-        )
-    except (ValueError, TypeError):
-        formatted_amount = str(amount_raw)
+    formatted_amount = _format_amount_for_display(
+        order,
+        _provider_config(request),
+    )
 
     return Template(
         template_name="authorize.html",

@@ -94,6 +94,10 @@ def test_load_provider_config_reads_env_override(
     assert load_provider_config()["second_key"] == "override-second-key"
 
 
+def test_load_provider_config_includes_amount_minor_unit_places() -> None:
+    assert load_provider_config()["amount_minor_unit_places"] == 2
+
+
 @pytest.mark.asyncio
 async def test_trigger_payu_webhook_signs_and_delivers_payload() -> None:
     storage = FakeStorage(

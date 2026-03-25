@@ -30,6 +30,7 @@ def load_provider_config(
 ) -> dict[str, Any]:
     environment = env or os.environ
     return {
+        "amount_minor_unit_places": 2,
         "second_key": environment.get(
             "SIMULATOR_PAYU_SECOND_KEY",
             "b6ca15b0d1020e8094d9b5f8d163db54",
