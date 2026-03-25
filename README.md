@@ -107,7 +107,7 @@ PayU provides a sandbox environment for testing. You can use the example keys pr
 ## Requirements
 
 - Python 3.12+
-- `python-getpaid-core >= 3.0.0a3`
+- `python-getpaid-core >= 3.0.0a4`
 - `httpx >= 0.27.0`
 
 ## License
