@@ -7,12 +7,12 @@ import getpaid_payu
 
 
 def test_version() -> None:
-    assert getpaid_payu.__version__ == "3.0.0a4"
+    assert getpaid_payu.__version__ == "3.0.0"
 
 
 def test_core_dependency_floor() -> None:
     pyproject_data = tomllib.loads(Path("pyproject.toml").read_text())
     assert (
-        "python-getpaid-core>=3.0.0a4"
+        "python-getpaid-core>=3.0.0"
         in pyproject_data["project"]["dependencies"]
     )
