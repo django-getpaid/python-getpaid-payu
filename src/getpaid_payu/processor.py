@@ -11,7 +11,7 @@ from typing import ClassVar
 from getpaid_core.enums import PaymentEvent
 from getpaid_core.exceptions import InvalidCallbackError
 from getpaid_core.processor import BaseProcessor
-from getpaid_core.types import ChargeResponse as CoreChargeResponse
+from getpaid_core.types import ChargeResult as CoreChargeResult
 from getpaid_core.types import PaymentUpdate
 from getpaid_core.types import RefundResult
 from getpaid_core.types import TransactionResult
@@ -291,7 +291,7 @@ class PayUProcessor(BaseProcessor):
 
     async def charge(
         self, amount: Decimal | None = None, **kwargs
-    ) -> CoreChargeResponse:
+    ) -> CoreChargeResult:
         """Charge a pre-authorized (locked) payment."""
         client = self._get_client()
         response = await client.capture(self.payment.external_id)
@@ -299,7 +299,7 @@ class PayUProcessor(BaseProcessor):
             response.get("status", {}).get("statusCode")
             == ResponseStatus.SUCCESS
         )
-        return CoreChargeResponse(
+        return CoreChargeResult(
             amount_charged=amount or self.payment.amount_locked,
             success=success,
             async_call=False,

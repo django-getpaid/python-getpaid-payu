@@ -1,15 +1,10 @@
 from datetime import datetime
-from enum import StrEnum
 from enum import auto
 from enum import unique
 from typing import Any
 from typing import TypedDict
 
-
-class AutoName(StrEnum):
-    @staticmethod
-    def _generate_next_value_(name, start, count, last_values):
-        return name.strip("_")
+from getpaid_core import AutoName
 
 
 @unique
