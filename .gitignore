@@ -16,5 +16,8 @@ htmlcov/
 # Implementation plans (local only)
 .plans/
 
+# Task-runner evidence / build cruft (local only)
+.sisyphus/
+
 # Sphinx build output
 docs/_build/

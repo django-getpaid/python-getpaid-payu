@@ -1,9 +1,21 @@
-"""Async HTTP client for PayU REST API."""
+"""Async HTTP client for PayU REST API.
 
+.. note:: Reliability
+    All requests carry an explicit timeout
+    (default ``httpx.Timeout(10.0, connect=5.0)``).
+    POST requests are deliberately **not** retried: PayU has no
+    documented idempotency key, so an automatic retry of e.g.
+    order creation or refund could double-charge or double-refund.
+    Callers who need retries must deduplicate on their side
+    (e.g. via ``extOrderId`` / ``extRefundId``).
+"""
+
+import asyncio
 import json
 import time
 from collections.abc import Callable
 from copy import deepcopy
+from decimal import ROUND_HALF_UP
 from decimal import Decimal
 from functools import wraps
 from typing import ClassVar
@@ -31,13 +43,25 @@ from .types import ShopInfoResponse
 from .types import TransactionResponse
 
 
+DEFAULT_TIMEOUT = httpx.Timeout(10.0, connect=5.0)
+
+
 def ensure_auth(func: Callable) -> Callable:
-    """Decorator ensuring the client is authenticated before API calls."""
+    """Decorator ensuring the client is authenticated before API calls.
+
+    Token acquisition is guarded by an ``asyncio.Lock`` so concurrent
+    coroutines sharing one client do not stampede the authorize
+    endpoint — the first one refreshes, the rest reuse the new token.
+    """
 
     @wraps(func)
     async def _f(self: "PayUClient", *args, **kwargs):
-        if self._token is None or time.monotonic() > self._token_expires_at - 5:
-            await self._authorize()
+        async with self._auth_lock:
+            if (
+                self._token is None
+                or time.monotonic() > self._token_expires_at - 5
+            ):
+                await self._authorize()
         return await func(self, *args, **kwargs)
 
     return _f
@@ -64,6 +88,8 @@ class PayUClient:
         "available",
         "unitPrice",
         "totalAmount",
+        "minAmount",
+        "maxAmount",
     }
 
     def __init__(
@@ -73,34 +99,45 @@ class PayUClient:
         second_key: str,
         oauth_id: int,
         oauth_secret: str,
+        timeout: httpx.Timeout | float | None = None,
     ) -> None:
         self.api_url = api_url
         self.pos_id = pos_id
         self.second_key = second_key
         self.oauth_id = oauth_id
         self.oauth_secret = oauth_secret
+        self.timeout: httpx.Timeout = (
+            DEFAULT_TIMEOUT
+            if timeout is None
+            else (
+                timeout
+                if isinstance(timeout, httpx.Timeout)
+                else httpx.Timeout(timeout)
+            )
+        )
         self._token: str | None = None
         self._token_expires_at: float = 0.0
         self._client: httpx.AsyncClient | None = None
-        self._owns_client: bool = False
+        self._auth_lock = asyncio.Lock()
 
     async def __aenter__(self) -> "PayUClient":
-        self._client = httpx.AsyncClient()
-        self._owns_client = True
+        self._ensure_http_client()
         return self
 
     async def __aexit__(self, *exc) -> None:
-        if self._owns_client and self._client is not None:
+        await self.aclose()
+
+    async def aclose(self) -> None:
+        """Close the underlying HTTP client and drop the cached token."""
+        if self._client is not None:
             await self._client.aclose()
             self._client = None
-            self._owns_client = False
 
-    async def _get_http_client(self) -> httpx.AsyncClient:
-        """Return the shared client or create a one-shot client."""
-        if self._client is not None:
-            return self._client
-        # Fallback: create a new client per request (no reuse)
-        return httpx.AsyncClient()
+    def _ensure_http_client(self) -> httpx.AsyncClient:
+        """Return the shared HTTP client, creating it lazily."""
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(timeout=self.timeout)
+        return self._client
 
     async def _request(
         self,
@@ -111,48 +148,32 @@ class PayUClient:
         content: str | None = None,
         follow_redirects: bool = True,
     ) -> httpx.Response:
-        """Execute an HTTP request, handling client lifecycle."""
-        if self._client is not None:
-            return await self._client.request(
-                method,
-                url,
-                headers=headers,
-                content=content,
-                follow_redirects=follow_redirects,
-            )
-        # No shared client — create and close one for this request
-        async with httpx.AsyncClient() as client:
-            return await client.request(
-                method,
-                url,
-                headers=headers,
-                content=content,
-                follow_redirects=follow_redirects,
-            )
+        """Execute an HTTP request on the shared client.
+
+        POSTs are intentionally not retried — PayU has no documented
+        idempotency key, so a blind retry could duplicate an order,
+        capture, or refund.
+        """
+        return await self._ensure_http_client().request(
+            method,
+            url,
+            headers=headers,
+            content=content,
+            follow_redirects=follow_redirects,
+        )
 
     async def _authorize(self) -> None:
         """Obtain OAuth2 access token from PayU."""
         url = f"{self.api_url.rstrip('/')}/pl/standard/user/oauth/authorize"
         # Auth uses form data, not JSON — use a dedicated client call
-        if self._client is not None:
-            self.last_response = await self._client.post(
-                url,
-                data={
-                    "grant_type": "client_credentials",
-                    "client_id": self.oauth_id,
-                    "client_secret": self.oauth_secret,
-                },
-            )
-        else:
-            async with httpx.AsyncClient() as client:
-                self.last_response = await client.post(
-                    url,
-                    data={
-                        "grant_type": "client_credentials",
-                        "client_id": self.oauth_id,
-                        "client_secret": self.oauth_secret,
-                    },
-                )
+        self.last_response = await self._ensure_http_client().post(
+            url,
+            data={
+                "grant_type": "client_credentials",
+                "client_id": self.oauth_id,
+                "client_secret": self.oauth_secret,
+            },
+        )
         if self.last_response.status_code == 200:
             data = self.last_response.json()
             self._token = (
@@ -172,6 +193,19 @@ class PayUClient:
             "Content-Type": "application/json",
         }
 
+    @staticmethod
+    def _to_minor_units(value: Decimal | int | float | str) -> str:
+        """Convert a major-unit amount to PayU's minor-unit string.
+
+        Goes through ``Decimal(str(value))`` so binary float artifacts
+        (e.g. ``19.99 * 100 == 1998.9999...``) never truncate a cent.
+        Values are rounded half-up to two decimal places first.
+        """
+        quantized = Decimal(str(value)).quantize(
+            Decimal("0.01"), rounding=ROUND_HALF_UP
+        )
+        return str(int(quantized * 100))
+
     @classmethod
     def _centify(
         cls,
@@ -187,7 +221,7 @@ class PayUClient:
         if hasattr(data, "items"):
             return {
                 k: (
-                    str(int(v * 100))
+                    cls._to_minor_units(v)
                     if k in cls._convertables and v is not None
                     else cls._centify(v)
                 )
@@ -282,28 +316,33 @@ class PayUClient:
         :param donation: Donation data.
         :param kwargs: Extra params passed to order data
             for forward compatibility.
+
+            .. warning::
+                ``**kwargs`` are passed through to PayU **verbatim** —
+                they are NOT centified. Any amount-bearing field inside
+                extra kwargs must already be expressed in MINOR units
+                (grosze/cents), unlike the named parameters which take
+                major units.
         :return: Normalized JSON response from API.
         """
         url = f"{self.api_url.rstrip('/')}/api/v2_1/orders"
-        data = self._centify(
-            {
-                "extOrderId": order_id,
-                "customerIp": customer_ip if customer_ip else "127.0.0.1",
-                "merchantPosId": str(self.pos_id),
-                "description": description if description else "Payment order",
-                "currencyCode": currency.upper(),
-                "totalAmount": amount,
-                "products": products
-                if products
-                else [
-                    {
-                        "name": "Total order",
-                        "unitPrice": amount,
-                        "quantity": 1,
-                    }
-                ],
-            }
-        )
+        data: dict = {
+            "extOrderId": order_id,
+            "customerIp": customer_ip if customer_ip else "127.0.0.1",
+            "merchantPosId": str(self.pos_id),
+            "description": description if description else "Payment order",
+            "currencyCode": currency.upper(),
+            "totalAmount": amount,
+            "products": products
+            if products
+            else [
+                {
+                    "name": "Total order",
+                    "unitPrice": amount,
+                    "quantity": 1,
+                }
+            ],
+        }
         optional_fields = {
             "notifyUrl": notify_url,
             "continueUrl": continue_url,
@@ -326,10 +365,16 @@ class PayUClient:
         }
         for key, value in optional_fields.items():
             if value is not None:
-                data[key] = value  # type: ignore[index]
+                data[key] = value
         if buyer:
-            data["buyer"] = buyer  # type: ignore[index]
-        data.update(kwargs)  # type: ignore[union-attr]
+            data["buyer"] = buyer
+        # Centify AFTER assembling named optional sections so nested
+        # amount fields (shoppingCarts[].amount, credit.shoppingCarts,
+        # payMethods, donation, ...) are converted like top-level ones.
+        data = self._centify(data)  # type: ignore[assignment]
+        # kwargs are deliberately passthrough (see docstring warning):
+        # callers must supply minor units for any amounts inside them.
+        data.update(kwargs)
         encoded = json.dumps(data, default=str)
         self.last_response = await self._request(
             "POST",
@@ -498,7 +543,7 @@ class PayUClient:
             headers=self._headers(),
         )
         if self.last_response.status_code == 200:
-            return self.last_response.json()
+            return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise CommunicationError(
             "Error retrieving payment methods",
             context={"raw_response": self.last_response},
@@ -519,7 +564,7 @@ class PayUClient:
             headers=self._headers(),
         )
         if self.last_response.status_code == 200:
-            return self.last_response.json()
+            return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise CommunicationError(
             "Error retrieving transaction",
             context={"raw_response": self.last_response},
@@ -539,7 +584,7 @@ class PayUClient:
             headers=self._headers(),
         )
         if self.last_response.status_code == 200:
-            return self.last_response.json()
+            return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise CommunicationError(
             "Error retrieving refunds",
             context={"raw_response": self.last_response},
@@ -563,7 +608,7 @@ class PayUClient:
             headers=self._headers(),
         )
         if self.last_response.status_code == 200:
-            return self.last_response.json()
+            return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise CommunicationError(
             "Error retrieving refund",
             context={"raw_response": self.last_response},
@@ -605,7 +650,7 @@ class PayUClient:
             content=encoded,
         )
         if self.last_response.status_code == 200:
-            return self.last_response.json()
+            return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise GetPaidException(
             "Error creating payout",
             context={"raw_response": self.last_response},
@@ -625,7 +670,7 @@ class PayUClient:
             headers=self._headers(),
         )
         if self.last_response.status_code == 200:
-            return self.last_response.json()
+            return self._normalize(self.last_response.json())  # type: ignore[return-value]
         raise CommunicationError(
             "Error retrieving payout",
             context={"raw_response": self.last_response},

@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 from typing import ClassVar
 
+import httpx
 from getpaid_core.enums import PaymentEvent
 from getpaid_core.exceptions import InvalidCallbackError
 from getpaid_core.processor import BaseProcessor
@@ -41,15 +42,42 @@ class PayUProcessor(BaseProcessor):
     sandbox_url: ClassVar[str] = "https://secure.snd.payu.com/"
     production_url: ClassVar[str] = "https://secure.payu.com/"
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self._client: PayUClient | None = None
+
     def _get_client(self) -> PayUClient:
-        """Create a PayUClient from processor config."""
-        return PayUClient(
-            api_url=self.get_paywall_baseurl(),
-            pos_id=int(self.get_setting("pos_id", 0)),
-            second_key=str(self.get_setting("second_key", "")),
-            oauth_id=int(self.get_setting("oauth_id", 0)),
-            oauth_secret=str(self.get_setting("oauth_secret", "")),
-        )
+        """Return the cached PayUClient, creating it on first use.
+
+        The client (and its OAuth token) is reused for the lifetime of
+        the processor instance instead of re-authorizing per operation.
+        Call :meth:`aclose` when done to release the HTTP connection.
+        """
+        if self._client is None:
+            self._client = PayUClient(
+                api_url=self.get_paywall_baseurl(),
+                pos_id=int(self.get_setting("pos_id", 0)),
+                second_key=str(self.get_setting("second_key", "")),
+                oauth_id=int(self.get_setting("oauth_id", 0)),
+                oauth_secret=str(self.get_setting("oauth_secret", "")),
+                timeout=httpx.Timeout(
+                    float(self.get_setting("timeout", 10.0)),
+                    connect=float(self.get_setting("connect_timeout", 5.0)),
+                ),
+            )
+        return self._client
+
+    async def aclose(self) -> None:
+        """Close the cached client and its HTTP connections."""
+        if self._client is not None:
+            await self._client.aclose()
+            self._client = None
+
+    async def __aenter__(self) -> "PayUProcessor":
+        return self
+
+    async def __aexit__(self, *exc) -> None:
+        await self.aclose()
 
     def _resolve_url(self, url_template: str) -> str:
         """Replace {payment_id} and {order_id} placeholders."""
@@ -183,32 +211,75 @@ class PayUProcessor(BaseProcessor):
 
         expected = algorithm(f"{raw_body}{second_key}".encode()).hexdigest()
 
+        # SECURITY: never log or return the expected digest — that would
+        # turn this endpoint into a signature oracle for forged callbacks.
+        # Logging the *received* (attacker-supplied) signature is fine.
         if not hmac.compare_digest(expected, signature):
             logger.error(
-                "Received bad signature for payment %s! "
-                "Got '%s', expected '%s'",
+                "Received bad signature for payment %s! Got '%s'",
                 self.payment.id,
                 signature,
-                expected,
             )
             raise InvalidCallbackError(
-                f"BAD SIGNATURE: got '{signature}', expected '{expected}'"
+                "BAD SIGNATURE: callback signature verification failed"
             )
 
     async def handle_callback(
         self, data: dict, headers: dict, **kwargs
     ) -> PaymentUpdate | None:
-        """Handle PayU PUSH callback and return a semantic update."""
+        """Handle PayU PUSH callback and return a semantic update.
+
+        The callback is cross-checked against the local payment:
+        ``extOrderId`` must match the payment id, ``currencyCode`` must
+        match the payment's currency, and status changes that carry
+        money (COMPLETED, WAITING_FOR_CONFIRMATION) must declare a
+        positive ``totalAmount`` — a missing or zero amount is rejected
+        rather than silently substituted with the local expectation.
+        """
         if "order" in data:
             order_data = data["order"]
+
+            ext_order_id = order_data.get("extOrderId")
+            if ext_order_id is None or str(ext_order_id) != str(
+                self.payment.id
+            ):
+                raise InvalidCallbackError(
+                    "Callback extOrderId does not match the local payment"
+                )
+
+            currency = order_data.get("currencyCode")
+            if (
+                currency is None
+                or str(currency).upper() != str(self.payment.currency).upper()
+            ):
+                raise InvalidCallbackError(
+                    "Callback currency does not match the payment currency"
+                )
+
             status = order_data.get("status")
-            amount = Decimal(str(order_data.get("totalAmount", 0))) / 100
+            raw_amount = order_data.get("totalAmount")
+            amount = (
+                Decimal(str(raw_amount)) / 100
+                if raw_amount is not None
+                else None
+            )
             external_id = order_data.get("orderId") or self.payment.external_id
             provider_event_id = f"order:{external_id}:{status}"
+            if (
+                status
+                in (
+                    OrderStatus.COMPLETED,
+                    OrderStatus.WAITING_FOR_CONFIRMATION,
+                )
+                and not amount
+            ):
+                raise InvalidCallbackError(
+                    "Callback totalAmount is missing or zero"
+                )
             if status == OrderStatus.COMPLETED:
                 return PaymentUpdate(
                     payment_event=PaymentEvent.PAYMENT_CAPTURED,
-                    paid_amount=amount or self.payment.amount_required,
+                    paid_amount=amount,
                     external_id=external_id,
                     provider_event_id=provider_event_id,
                     provider_data={"payu_status": status},
@@ -223,7 +294,7 @@ class PayUProcessor(BaseProcessor):
             elif status == OrderStatus.WAITING_FOR_CONFIRMATION:
                 return PaymentUpdate(
                     payment_event=PaymentEvent.LOCKED,
-                    locked_amount=amount or self.payment.amount_required,
+                    locked_amount=amount,
                     external_id=external_id,
                     provider_event_id=provider_event_id,
                     provider_data={"payu_status": status},
@@ -261,7 +332,9 @@ class PayUProcessor(BaseProcessor):
             return None
 
         external_id = order_data.get("orderId") or self.payment.external_id
-        amount = Decimal(str(order_data.get("totalAmount", 0))) / 100
+        # PayUClient.get_order_info already normalizes totalAmount from
+        # minor units to Decimal major units — do NOT divide again here.
+        amount = Decimal(str(order_data.get("totalAmount", 0)))
         provider_event_id = f"poll:{external_id}:{status}"
 
         if status == OrderStatus.COMPLETED:
@@ -292,7 +365,19 @@ class PayUProcessor(BaseProcessor):
     async def charge(
         self, amount: Decimal | None = None, **kwargs
     ) -> CoreChargeResult:
-        """Charge a pre-authorized (locked) payment."""
+        """Charge a pre-authorized (locked) payment.
+
+        PayU's capture endpoint always captures the FULL authorized
+        amount — partial captures are not supported. Requesting a
+        different amount raises ``ValueError`` instead of silently
+        capturing the full lock and misreporting the charged amount.
+        """
+        if amount is not None and amount != self.payment.amount_locked:
+            raise ValueError(
+                "PayU does not support partial captures: requested "
+                f"{amount}, but the full locked amount "
+                f"{self.payment.amount_locked} would be captured."
+            )
         client = self._get_client()
         response = await client.capture(self.payment.external_id)
         success = (
@@ -300,7 +385,7 @@ class PayUProcessor(BaseProcessor):
             == ResponseStatus.SUCCESS
         )
         return CoreChargeResult(
-            amount_charged=amount or self.payment.amount_locked,
+            amount_charged=self.payment.amount_locked,
             success=success,
             async_call=False,
         )

@@ -2,6 +2,7 @@
 
 from decimal import Decimal
 
+import httpx
 import pytest
 from getpaid_core.exceptions import ChargeFailure
 from getpaid_core.exceptions import CommunicationError
@@ -88,6 +89,25 @@ class TestCentify:
         """None values in convertable keys are passed through unchanged."""
         result = PayUClient._centify({"amount": None, "name": "Test"})
         assert result == {"amount": None, "name": "Test"}
+
+    def test_float_amount_not_truncated(self):
+        """19.99 as float must become "1999", not "1998"."""
+        result = PayUClient._centify({"amount": 19.99})
+        assert result == {"amount": "1999"}
+
+    def test_float_edge_case_0_29(self):
+        """0.29 * 100 == 28.999... in binary floats; must yield "29"."""
+        result = PayUClient._centify({"amount": 0.29})
+        assert result == {"amount": "29"}
+
+    def test_float_edge_case_1_005(self):
+        """1.005 rounds half-up to 1.01 → "101"."""
+        result = PayUClient._centify({"amount": 1.005})
+        assert result == {"amount": "101"}
+
+    def test_string_amount(self):
+        result = PayUClient._centify({"amount": "19.99"})
+        assert result == {"amount": "1999"}
 
 
 class TestNormalize:
@@ -178,6 +198,97 @@ async def payu_client(respx_mock):
     )
     await client._authorize()
     return client
+
+
+def _make_client(**kwargs) -> PayUClient:
+    return PayUClient(
+        api_url=API_URL,
+        pos_id=300746,
+        second_key="b6ca15b0d1020e8094d9b5f8d163db54",
+        oauth_id=300746,
+        oauth_secret="2ee86a66e5d97e3fadc400c9f19b065d",
+        **kwargs,
+    )
+
+
+class TestTimeouts:
+    """Every HTTP client must carry an explicit timeout."""
+
+    async def test_default_timeout(self):
+        client = _make_client()
+        assert client.timeout == httpx.Timeout(10.0, connect=5.0)
+
+    async def test_custom_timeout(self):
+        custom = httpx.Timeout(3.0, connect=1.0)
+        client = _make_client(timeout=custom)
+        assert client.timeout == custom
+
+    async def test_http_client_uses_timeout(self, respx_mock):
+        respx_mock.post(AUTH_URL).respond(json=OAUTH_RESPONSE)
+        client = _make_client(timeout=httpx.Timeout(3.0, connect=1.0))
+        try:
+            await client._authorize()
+            assert client._client is not None
+            assert client._client.timeout == httpx.Timeout(3.0, connect=1.0)
+        finally:
+            await client.aclose()
+
+
+class TestClientReuse:
+    """One underlying httpx client, one OAuth round-trip."""
+
+    async def test_connection_reused_across_calls(self, respx_mock):
+        auth_route = respx_mock.post(AUTH_URL).respond(json=OAUTH_RESPONSE)
+        respx_mock.get(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123"
+        ).respond(
+            json={
+                "orders": [{"orderId": "ORDER123", "status": "COMPLETED"}],
+                "status": {"statusCode": "SUCCESS"},
+            },
+            status_code=200,
+        )
+        client = _make_client()
+        try:
+            await client.get_order_info("ORDER123")
+            first_http_client = client._client
+            await client.get_order_info("ORDER123")
+            assert client._client is first_http_client
+            assert auth_route.call_count == 1
+        finally:
+            await client.aclose()
+
+    async def test_concurrent_calls_do_not_stampede_auth(self, respx_mock):
+        import asyncio
+
+        auth_route = respx_mock.post(AUTH_URL).respond(json=OAUTH_RESPONSE)
+        respx_mock.get(
+            "https://secure.payu.com/api/v2_1/orders/ORDER123"
+        ).respond(
+            json={
+                "orders": [{"orderId": "ORDER123", "status": "COMPLETED"}],
+                "status": {"statusCode": "SUCCESS"},
+            },
+            status_code=200,
+        )
+        client = _make_client()
+        try:
+            await asyncio.gather(
+                *(client.get_order_info("ORDER123") for _ in range(5))
+            )
+            assert auth_route.call_count == 1
+        finally:
+            await client.aclose()
+
+    async def test_aclose_closes_http_client(self, respx_mock):
+        respx_mock.post(AUTH_URL).respond(json=OAUTH_RESPONSE)
+        client = _make_client()
+        await client._authorize()
+        http_client = client._client
+        assert http_client is not None
+        await client.aclose()
+        assert http_client.is_closed
+        assert client._client is None
 
 
 class TestAuth:
@@ -320,6 +431,101 @@ class TestNewOrder:
         assert body["cardOnFile"] == "FIRST"
         assert body["recurring"] == "FIRST"
         assert body["deviceFingerprint"] == "abc123"
+
+
+class TestNewOrderNestedAmounts:
+    """Amount-bearing optional sections must be centified too."""
+
+    ORDER_RESPONSE = {
+        "status": {"statusCode": "SUCCESS"},
+        "orderId": "ORDER123",
+        "extOrderId": "ext-1",
+        "redirectUri": "https://example.com/redirect",
+    }
+
+    async def test_shopping_carts_amounts_centified(
+        self, payu_client, respx_mock
+    ):
+        import json as json_mod
+
+        route = respx_mock.post(
+            "https://secure.payu.com/api/v2_1/orders"
+        ).respond(json=self.ORDER_RESPONSE, status_code=200)
+
+        await payu_client.new_order(
+            amount=Decimal("100.00"),
+            currency="PLN",
+            order_id="ext-1",
+            shopping_carts=[
+                {
+                    "extCustomerId": "seller-1",
+                    "amount": Decimal("50.00"),
+                    "products": [
+                        {
+                            "name": "P1",
+                            "unitPrice": Decimal("25.00"),
+                            "quantity": 2,
+                        }
+                    ],
+                }
+            ],
+        )
+        body = json_mod.loads(route.calls.last.request.content)
+        cart = body["shoppingCarts"][0]
+        assert cart["amount"] == "5000"
+        assert cart["products"][0]["unitPrice"] == "2500"
+
+    async def test_credit_shopping_carts_amounts_centified(
+        self, payu_client, respx_mock
+    ):
+        import json as json_mod
+
+        route = respx_mock.post(
+            "https://secure.payu.com/api/v2_1/orders"
+        ).respond(json=self.ORDER_RESPONSE, status_code=200)
+
+        await payu_client.new_order(
+            amount=Decimal("100.00"),
+            currency="PLN",
+            order_id="ext-1",
+            credit={
+                "shoppingCarts": [
+                    {
+                        "amount": Decimal("100.00"),
+                        "products": [
+                            {
+                                "name": "P1",
+                                "unitPrice": Decimal("100.00"),
+                                "quantity": 1,
+                            }
+                        ],
+                    }
+                ]
+            },
+        )
+        body = json_mod.loads(route.calls.last.request.content)
+        cart = body["credit"]["shoppingCarts"][0]
+        assert cart["amount"] == "10000"
+        assert cart["products"][0]["unitPrice"] == "10000"
+
+    async def test_kwargs_are_passthrough_minor_units(
+        self, payu_client, respx_mock
+    ):
+        """**kwargs are NOT centified — callers must pass minor units."""
+        import json as json_mod
+
+        route = respx_mock.post(
+            "https://secure.payu.com/api/v2_1/orders"
+        ).respond(json=self.ORDER_RESPONSE, status_code=200)
+
+        await payu_client.new_order(
+            amount=Decimal("100.00"),
+            currency="PLN",
+            order_id="ext-1",
+            futureFeature={"amount": 1234},
+        )
+        body = json_mod.loads(route.calls.last.request.content)
+        assert body["futureFeature"] == {"amount": 1234}
 
 
 class TestRefund:
@@ -589,6 +795,9 @@ class TestGetPaymentMethods:
         result = await payu_client.get_payment_methods()
         assert len(result["payByLinks"]) == 1
         assert result["payByLinks"][0]["value"] == "blik"
+        # Minor-unit limits are normalized to Decimal major units
+        assert result["payByLinks"][0]["minAmount"] == Decimal("0.01")
+        assert result["payByLinks"][0]["maxAmount"] == Decimal("999999.99")
 
     async def test_get_payment_methods_with_lang(self, payu_client, respx_mock):
         methods_response = {
@@ -621,6 +830,10 @@ class TestGetTransaction:
                     "payMethod": {"value": "c"},
                     "paymentFlow": "CARD",
                     "resultCode": "000",
+                    "cardInstallmentProposal": {
+                        "proposalId": "PROP1",
+                        "totalAmount": 10000,
+                    },
                 }
             ]
         }
@@ -631,6 +844,9 @@ class TestGetTransaction:
         result = await payu_client.get_transaction("ORDER123")
         assert len(result["transactions"]) == 1
         assert result["transactions"][0]["paymentFlow"] == "CARD"
+        # Amount fields are normalized to Decimal major units
+        proposal = result["transactions"][0]["cardInstallmentProposal"]
+        assert proposal["totalAmount"] == Decimal("100")
 
     async def test_get_transaction_failure(self, payu_client, respx_mock):
         respx_mock.get(
@@ -660,6 +876,7 @@ class TestGetRefunds:
         result = await payu_client.get_refunds("ORDER123")
         assert len(result) == 1
         assert result[0]["refundId"] == "REF1"
+        assert result[0]["amount"] == Decimal("50")
 
     async def test_get_refunds_failure(self, payu_client, respx_mock):
         respx_mock.get(
@@ -682,6 +899,7 @@ class TestGetRefunds:
 
         result = await payu_client.get_refund("ORDER123", "REF1")
         assert result["refundId"] == "REF1"
+        assert result["amount"] == Decimal("50")
 
     async def test_get_refund_failure(self, payu_client, respx_mock):
         respx_mock.get(
@@ -697,7 +915,11 @@ class TestPayout:
 
     async def test_create_payout_success(self, payu_client, respx_mock):
         payout_response = {
-            "payout": {"payoutId": "PAY1", "status": "PENDING"},
+            "payout": {
+                "payoutId": "PAY1",
+                "status": "PENDING",
+                "amount": 10000,
+            },
             "status": {"statusCode": "SUCCESS"},
         }
         respx_mock.post("https://secure.payu.com/api/v2_1/payouts").respond(
@@ -710,6 +932,8 @@ class TestPayout:
             description="Monthly payout",
         )
         assert result["status"]["statusCode"] == "SUCCESS"
+        # Response amounts come back normalized to major units
+        assert result["payout"]["amount"] == Decimal("100")
 
     async def test_create_payout_failure(self, payu_client, respx_mock):
         respx_mock.post("https://secure.payu.com/api/v2_1/payouts").respond(
@@ -723,7 +947,11 @@ class TestPayout:
 
     async def test_get_payout_success(self, payu_client, respx_mock):
         payout_response = {
-            "payout": {"payoutId": "PAY1", "status": "REALIZED"},
+            "payout": {
+                "payoutId": "PAY1",
+                "status": "REALIZED",
+                "amount": 12345,
+            },
             "status": {"statusCode": "SUCCESS"},
         }
         respx_mock.get("https://secure.payu.com/api/v2_1/payouts/PAY1").respond(
@@ -732,6 +960,7 @@ class TestPayout:
 
         result = await payu_client.get_payout("PAY1")
         assert result["payout"]["payoutId"] == "PAY1"
+        assert result["payout"]["amount"] == Decimal("123.45")
 
     async def test_get_payout_failure(self, payu_client, respx_mock):
         respx_mock.get("https://secure.payu.com/api/v2_1/payouts/PAY1").respond(
