@@ -24,13 +24,17 @@ jobs:
         run: pip install uv
 
       - name: Install dependencies
-        run: uv sync
+        # --all-extras: tests/test_simulator_plugin.py imports getpaid_simulator
+        run: uv sync --all-extras
 
       - name: Lint with ruff
         run: uv run ruff check .
 
       - name: Audit dependencies
-        run: uv run pip-audit --strict
+        # --skip-editable: the project itself is installed editable at a
+        # not-yet-released version, so it cannot be audited against PyPI.
+        # Known vulnerabilities in dependencies still fail the build.
+        run: uv run pip-audit --skip-editable
 
       - name: Run tests
         run: uv run pytest --tb=short

@@ -422,11 +422,11 @@ wheels = [
 
 [[package]]
 name = "idna"
-version = "3.11"
+version = "3.18"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/6f/6d/0703ccc57f3a7233505399edb88de3cbd678da106337b9fcde432b65ed60/idna-3.11.tar.gz", hash = "sha256:795dafcc9c04ed0c1fb032c2aa73654d8e8c5023a7df64a53f39190ada629902", size = 194582, upload-time = "2025-10-12T14:55:20.501Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/cd/63/9496c57188a2ee585e0f1db071d75089a11e98aa86eb99d9d7618fc1edce/idna-3.18.tar.gz", hash = "sha256:ffb385a7e039654cef1ab9ef32c6fafe283c0c0467bba1d9029738ce4a14a848", size = 196711, upload-time = "2026-06-02T14:34:07.794Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/0e/61/66938bbb5fc52dbdf84594873d5b51fb1f7c7794e9c0f5bd885f30bc507b/idna-3.11-py3-none-any.whl", hash = "sha256:771a87f49d9defaf64091e6e6fe9c18d4833f140bd19464795bc32d966ca37ea", size = 71008, upload-time = "2025-10-12T14:55:18.883Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/5e/d4e9f1a599fb8e573b7b87160658329fbf28d19eac2718f51fc3def3aa5a/idna-3.18-py3-none-any.whl", hash = "sha256:7f952cbe720b688055e3f87de14f5c3e5fdaa8bc3928985c4077ca689de849a2", size = 65455, upload-time = "2026-06-02T14:34:06.319Z" },
 ]
 
 [[package]]
@@ -473,7 +473,7 @@ wheels = [
 
 [[package]]
 name = "litestar"
-version = "2.21.1"
+version = "2.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "anyio" },
@@ -490,9 +490,9 @@ dependencies = [
     { name = "sniffio" },
     { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a1/fc/7ce2057ffd738be4d2abc5b69229f57181bbff8a84a4576004b021085773/litestar-2.21.1.tar.gz", hash = "sha256:28301438de7c5e77bb68a5d8684dff415b9f252b0dd8413b356e8e6794c6863a", size = 376270, upload-time = "2026-03-07T13:49:16.053Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/42/f6/33619a1562c6732dab211a967b1e7af3285de29d655c0b37b3f379aa2700/litestar-2.24.0.tar.gz", hash = "sha256:8f4b137cb115554b9fbc12bd01d398d5bb40ba85f2d333dd73f4b747308bbb46", size = 383070, upload-time = "2026-06-11T11:27:00.519Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f3/67/139c0fa6e1dd9e558910c02a383cd0ae12c2a1d6d3f0ea0d42dbeb03d8b2/litestar-2.21.1-py3-none-any.whl", hash = "sha256:6321340195801454aeac4a12e72c28f54714a4c3e8172c33e577c593cc5982c6", size = 568342, upload-time = "2026-03-07T13:49:13.694Z" },
+    { url = "https://files.pythonhosted.org/packages/c8/ce/4697b547790f23d2fcc37a928d48c38140cf86360e4041ca8177e3367c14/litestar-2.24.0-py3-none-any.whl", hash = "sha256:0ef13630173ea147847363f03f0459877ab14a572e68b2af7a25796055513a31", size = 581807, upload-time = "2026-06-11T11:26:58.509Z" },
 ]
 
 [[package]]
@@ -960,11 +960,11 @@ wheels = [
 
 [[package]]
 name = "pygments"
-version = "2.19.2"
+version = "2.20.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/b0/77/a5b8c569bf593b0140bde72ea885a803b82086995367bf2037de0159d924/pygments-2.19.2.tar.gz", hash = "sha256:636cb2477cec7f8952536970bc533bc43743542f70392ae026374600add5b887", size = 4968631, upload-time = "2025-06-21T13:39:12.283Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/c3/b2/bc9c9196916376152d655522fdcebac55e66de6603a76a02bca1b6414f6c/pygments-2.20.0.tar.gz", hash = "sha256:6757cd03768053ff99f3039c1a36d6c0aa0b263438fcab17520b30a303a82b5f", size = 4955991, upload-time = "2026-03-29T13:29:33.898Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/c7/21/705964c7812476f378728bdf590ca4b771ec72385c533964653c68e86bdc/pygments-2.19.2-py3-none-any.whl", hash = "sha256:86540386c03d588bb81d44bc3928634ff26449851e99741617ecb9037ee5ec0b", size = 1225217, upload-time = "2025-06-21T13:39:07.939Z" },
+    { url = "https://files.pythonhosted.org/packages/f4/7e/a72dd26f3b0f4f2bf1dd8923c85f7ceb43172af56d63c7383eb62b332364/pygments-2.20.0-py3-none-any.whl", hash = "sha256:81a9e26dd42fd28a23a2d169d86d7ac03b46e2f8b59ed4698fb4785f946d0176", size = 1231151, upload-time = "2026-03-29T13:29:30.038Z" },
 ]
 
 [[package]]
@@ -978,7 +978,7 @@ wheels = [
 
 [[package]]
 name = "pytest"
-version = "9.0.2"
+version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "colorama", marker = "sys_platform == 'win32'" },
@@ -987,9 +987,9 @@ dependencies = [
     { name = "pluggy" },
     { name = "pygments" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/d1/db/7ef3487e0fb0049ddb5ce41d3a49c235bf9ad299b6a25d5780a89f19230f/pytest-9.0.2.tar.gz", hash = "sha256:75186651a92bd89611d1d9fc20f0b4345fd827c41ccd5c299a868a05d70edf11", size = 1568901, upload-time = "2025-12-06T21:30:51.014Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e4/47/b9efed96c114afcfa3c9d3fe98a76a1d14c74a9e266d397cf6eb64be5e01/pytest-9.1.1.tar.gz", hash = "sha256:1088fbde8f2b49d95a549a195707afa7a76a3ce9bcadc26b6d71f0ffda5fe313", size = 1636369, upload-time = "2026-06-19T10:58:32.857Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3b/ab/b3226f0bd7cdcf710fbede2b3548584366da3b19b5021e74f5bde2a8fa3f/pytest-9.0.2-py3-none-any.whl", hash = "sha256:711ffd45bf766d5264d487b917733b453d917afd2b0ad65223959f59089f875b", size = 374801, upload-time = "2025-12-06T21:30:49.154Z" },
+    { url = "https://files.pythonhosted.org/packages/24/25/1de2678b631f5a49215c6c96fff41ba892b0a34df68d6d80292b1b48aa7f/pytest-9.1.1-py3-none-any.whl", hash = "sha256:37a86b45efb9a47a61a36449063e8e18d0cab3161329fc099eb21783169c4f0c", size = 386536, upload-time = "2026-06-19T10:58:31.347Z" },
 ]
 
 [[package]]
@@ -1030,11 +1030,11 @@ wheels = [
 
 [[package]]
 name = "python-getpaid-core"
-version = "3.1.0"
+version = "3.2.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/5a/e2/b04f36bc24b6c0ba732d85017853b05dd2d80f74006ec6bd10b3fef5d675/python_getpaid_core-3.1.0.tar.gz", hash = "sha256:7595204ef50186499122e703c09a0e7e9a748b9a82991a3920fc5cf072c57639", size = 58338, upload-time = "2026-06-20T10:00:55.375Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/e4/f754e6c49915fe261985b9ada9bd5153307c45c4f9163d9ba2618d9b0d3c/python_getpaid_core-3.2.0.tar.gz", hash = "sha256:422a65217c4d37c5515d0fd98ee074908a5b40b167de46cb3836de6ea06de6b8", size = 63917, upload-time = "2026-07-04T20:18:29.41Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2e/d8/b3cb82efc85be6f0d79506adde54b2e173c074fa8697ff1180f8064f9c63/python_getpaid_core-3.1.0-py3-none-any.whl", hash = "sha256:83cd8a993e956cfc2d1e197426958bb18f9c0dbb3b83d027d46d8b03df78fabc", size = 15577, upload-time = "2026-06-20T10:00:54.477Z" },
+    { url = "https://files.pythonhosted.org/packages/10/fc/41555770dee19111f2c34fbcd7763d602923ba7a5fcb3b5633ff842b1e18/python_getpaid_core-3.2.0-py3-none-any.whl", hash = "sha256:61cd25557306de26e6b369eae7c55072e5608267bde936749e30d57e0c5fc051", size = 18144, upload-time = "2026-07-04T20:18:28.536Z" },
 ]
 
 [[package]]
@@ -1096,7 +1096,7 @@ docs = [
 
 [[package]]
 name = "python-getpaid-simulator"
-version = "3.0.0"
+version = "3.1.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
@@ -1104,9 +1104,9 @@ dependencies = [
     { name = "litestar" },
     { name = "uvicorn", extra = ["standard"] },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/13/69bb0b2d01fa2d0cfa741e2b014fca300579778f021a7abd100d3727616a/python_getpaid_simulator-3.0.0.tar.gz", hash = "sha256:6b0027ea90883a33cde19788ea697fee4a0f6ac761ac27946436c5343de79f8e", size = 41524, upload-time = "2026-06-04T18:29:17.83Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/55/8c/b1a2310a451693ecae4678db2af511ec06190073a36c35e9fc5179194672/python_getpaid_simulator-3.1.0.tar.gz", hash = "sha256:c6492e11e7456ad7a6b2997901a39a2c0852b131fb59d48c8093448dcc9f44a0", size = 41523, upload-time = "2026-06-20T10:01:00.608Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/2e/0c/9cdd4b3827fbd81413d1ecc76b3e9d1c2db4fcbbe85ba82e74c89581de72/python_getpaid_simulator-3.0.0-py3-none-any.whl", hash = "sha256:aeabdf3c3a0a9abbab2aea0362113fe70e05c5da2a84640a0d4b3f4977dba2a2", size = 20308, upload-time = "2026-06-04T18:29:16.882Z" },
+    { url = "https://files.pythonhosted.org/packages/1e/ef/8dbb3fe274aa876292dcc5f055496a91709541c3e9e14fe237989f5cb058/python_getpaid_simulator-3.1.0-py3-none-any.whl", hash = "sha256:ac93aa2db711672d47f56750570114004e746528a97a8330d0fbdcc3cdebdb93", size = 20307, upload-time = "2026-06-20T10:00:59.769Z" },
 ]
 
 [[package]]
@@ -1157,7 +1157,7 @@ wheels = [
 
 [[package]]
 name = "requests"
-version = "2.32.5"
+version = "2.34.2"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "certifi" },
@@ -1165,9 +1165,9 @@ dependencies = [
     { name = "idna" },
     { name = "urllib3" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c9/74/b3ff8e6c8446842c3f5c837e9c3dfcfe2018ea6ecef224c710c85ef728f4/requests-2.32.5.tar.gz", hash = "sha256:dbba0bac56e100853db0ea71b82b4dfd5fe2bf6d3754a8893c3af500cec7d7cf", size = 134517, upload-time = "2025-08-18T20:46:02.573Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ac/c3/e2a2b89f2d3e2179abd6d00ebd70bff6273f37fb3e0cc209f48b39d00cbf/requests-2.34.2.tar.gz", hash = "sha256:f288924cae4e29463698d6d60bc6a4da69c89185ad1e0bcc4104f584e960b9ed", size = 142856, upload-time = "2026-05-14T19:25:27.735Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/1e/db/4254e3eabe8020b458f1a747140d32277ec7a271daf1d235b70dc0b4e6e3/requests-2.32.5-py3-none-any.whl", hash = "sha256:2462f94637a34fd532264295e186976db0f5d453d1cdd31473c85a6a161affb6", size = 64738, upload-time = "2025-08-18T20:46:00.542Z" },
+    { url = "https://files.pythonhosted.org/packages/a0/f4/c67b0b3f1b9245e8d266f0f112c500d50e5b4e83cb6f3b71b6528104182a/requests-2.34.2-py3-none-any.whl", hash = "sha256:2a0d60c172f83ac6ab31e4554906c0f3b3588d37b5cb939b1c061f4907e278e0", size = 73075, upload-time = "2026-05-14T19:25:26.443Z" },
 ]
 
 [[package]]
@@ -1471,11 +1471,11 @@ wheels = [
 
 [[package]]
 name = "urllib3"
-version = "2.6.3"
+version = "2.7.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c7/24/5f1b3bdffd70275f6661c76461e25f024d5a38a46f04aaca912426a2b1d3/urllib3-2.6.3.tar.gz", hash = "sha256:1b62b6884944a57dbe321509ab94fd4d3b307075e0c2eae991ac71ee15ad38ed", size = 435556, upload-time = "2026-01-07T16:24:43.925Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/53/0c/06f8b233b8fd13b9e5ee11424ef85419ba0d8ba0b3138bf360be2ff56953/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c", size = 433602, upload-time = "2026-05-07T16:13:18.596Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/39/08/aaaad47bc4e9dc8c725e68f9d04865dbcb2052843ff09c97b08904852d84/urllib3-2.6.3-py3-none-any.whl", hash = "sha256:bf272323e553dfb2e87d9bfd225ca7b0f467b919d7bbd355436d3fd37cb0acd4", size = 131584, upload-time = "2026-01-07T16:24:42.685Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
 ]
 
 [[package]]
